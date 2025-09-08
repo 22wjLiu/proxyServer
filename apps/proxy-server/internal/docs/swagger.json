@@ -1,0 +1,54 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "description": "HTTP代理 + 规则拦截 + 指标接口",
+    "title": "Proxy Server API",
+    "contact": {},
+    "version": "1.0"
+  },
+  "basePath": "/",
+  "paths": {
+    "/api/stats": {
+      "get": {
+        "produces": ["application/json"],
+        "tags": ["stats"],
+        "summary": "Get runtime stats",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "$ref": "#/definitions/metrics.StatsResponse"
+            }
+          }
+        }
+      }
+    }
+  },
+  "definitions": {
+    "metrics.StatsResponse": {
+      "type": "object",
+      "properties": {
+        "avgLatencyMs": {
+          "type": "integer",
+          "example": 18
+        },
+        "blockRate": {
+          "type": "number",
+          "example": 0.13
+        },
+        "concurrent": {
+          "type": "integer",
+          "example": 42
+        },
+        "p95LatencyMs": {
+          "type": "integer",
+          "example": 45
+        },
+        "qps": {
+          "type": "number",
+          "example": 12.3
+        }
+      }
+    }
+  }
+}

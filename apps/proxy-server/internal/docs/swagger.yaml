@@ -1,0 +1,39 @@
+basePath: /
+definitions:
+  metrics.StatsResponse:
+    properties:
+      avgLatencyMs:
+        example: 18
+        type: integer
+      blockRate:
+        example: 0.13
+        type: number
+      concurrent:
+        example: 42
+        type: integer
+      p95LatencyMs:
+        example: 45
+        type: integer
+      qps:
+        example: 12.3
+        type: number
+    type: object
+info:
+  contact: {}
+  description: HTTP代理 + 规则拦截 + 指标接口
+  title: Proxy Server API
+  version: "1.0"
+paths:
+  /api/stats:
+    get:
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/metrics.StatsResponse'
+      summary: Get runtime stats
+      tags:
+      - stats
+swagger: "2.0"

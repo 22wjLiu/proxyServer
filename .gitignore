@@ -1,0 +1,27 @@
+# Go build
+/bin/
+/dist/
+/*.exe
+/*.out
+/*.test
+
+# Node.js / Vue
+/node_modules/
+/dist/
+/*.local
+*.lock
+
+# pnpm
+pnpm-debug.log*
+.pnpm-debug.log
+.pnpm-store/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
