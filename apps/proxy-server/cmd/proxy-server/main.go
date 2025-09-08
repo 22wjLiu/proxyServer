@@ -1,20 +1,19 @@
 package main
 
 import (
-	"context"
-	"fmt"
+	"log"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/22wjLiu/proxy-server/internal/httpproxy"
-	m "github.com/22wjLiu/proxy-server/internal/metrics"
-	"github.com/22wjLiu/proxy-server/internal/rules"
-
-	httpSwagger "github.com/swaggo/http-swagger"
-	docs "github.com/22wjLiu/proxy-server/internal/docs"
+	"proxy/internal/config"
+	"proxy/internal/logging"
+	"proxy/internal/metrics"
+	httpproxy "proxy/internal/proxy/http" // alias as httpproxy
+	socks5proxy "proxy/internal/proxy/socks5"
+	"proxy/internal/upstream"
 )
 
 // @title           Proxy Server API
@@ -23,50 +22,74 @@ import (
 // @BasePath        /
 
 func main() {
-	// 端口/路径
-	httpProxyAddr := "0.0.0.0:8080"
-	dashboardAddr := "0.0.0.0:3000"
-	publicDir := "./public"
+	// 1) 加载配置
+	cfgPath := os.Getenv("PROXY_CONFIG")
+	if cfgPath == "" {
+		cfgPath = "configs/config.example.yaml"
+	}
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		log.Fatalf("load config: %v", err)
+	}
 
-	// Swagger 基本信息（可选）
-	docs.SwaggerInfo.Title = "Proxy Server API"
-	docs.SwaggerInfo.Version = "1.0"
-	docs.SwaggerInfo.BasePath = "/"
+	// 2) 初始化日志
+	logger := logging.New(cfg.Logging)
+	logger.Infof("config loaded: %s", cfgPath)
 
-	// 规则引擎（示例）
-	engine := rules.New(rules.Config{
-		DefaultAction: "allow",
-		Allowlist:     []string{"*.edu", "*.gov"},
-		BlockDomains:  []string{"*.doubleclick.net"},
-		BlockTLDs:     []string{".xxx", ".adult"},
-		Keywords:      []string{"adservice", "ads.", "porn", "sex", "track"},
-	})
-
-	// 启动代理
-	proxy := httpproxy.New(httpproxy.Opts{Addr: httpProxyAddr, Engine: engine, Timeout: 8 * time.Second})
+	// 3) 初始化指标
+	m := metrics.NewRegistry()
+	metricsSrv := &http.Server{
+		Addr:         cfg.Metrics.Listen,
+		Handler:      metrics.NewHTTPHandler(m),
+		ReadTimeout:  5 * time.Second,
+		WriteTimeout: 5 * time.Second,
+	}
 	go func() {
-		fmt.Println("[proxy] listen:", httpProxyAddr)
-		_ = proxy.ListenAndServe()
+		logger.Infof("metrics listening at %s", cfg.Metrics.Listen)
+		if err := metricsSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			logger.Errorf("metrics serve: %v", err)
+		}
 	}()
+	// 4) 初始化上游池（负载均衡 + 健康检查）
+	upPool := upstream.NewPool(cfg.Upstream, logger)
+	go upPool.StartHealthCheck()
 
-	// Dashboard mux：托管前端 + API + Swagger UI
-	mux := http.NewServeMux()
-	mux.Handle("/", http.FileServer(http.Dir(publicDir)))
-	mux.HandleFunc("/api/stats", m.GetStats)
-	mux.Handle("/swagger/", httpSwagger.WrapHandler)
+	// 5) 启动 HTTP/HTTPS 代理
+	if cfg.Listen.HTTP != "" {
+		httpSrv := httpproxy.NewServer(cfg, logger, m, upPool)
+		go func() {
+			logger.Infof("HTTP proxy listening at %s", cfg.Listen.HTTP)
+			if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				logger.Errorf("http proxy: %v", err)
+			}
+		}()
+	}
 
-	dashboardSrv := &http.Server{Addr: dashboardAddr, Handler: mux}
-	go func() {
-		fmt.Println("[dashboard] listen:", dashboardAddr)
-		_ = dashboardSrv.ListenAndServe()
-	}()
+	// 6) 启动 SOCKS5 代理
+	if cfg.Listen.SOCKS5 != "" {
+		go func() {
+			logger.Infof("SOCKS5 proxy listening at %s", cfg.Listen.SOCKS5)
+			if err := socks5proxy.ListenAndServe(cfg, logger, m, upPool); err != nil {
+				logger.Errorf("socks5 proxy: %v", err)
+			}
+		}()
+	}
 
-	// 优雅退出
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
-	<-stop
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
-	defer cancel()
-	_ = dashboardSrv.Shutdown(ctx)
-	_ = proxy.Shutdown(ctx)
+	// 7) (可选) 仪表盘静态服务
+	if cfg.Dashboard.Enable {
+		go func() {
+			logger.Infof("dashboard serving at %s", cfg.Dashboard.Listen)
+			if err := serveDashboard(cfg); err != nil {
+				logger.Errorf("dashboard: %v", err)
+			}
+		}()
+	}
+
+	// 8) 优雅退出
+	sig := make(chan os.Signal, 1)
+	signal.Notify(sig, syscall.SIGINT, syscall.SIGTERM)
+	<-sig
+	logger.Info("shutting down...")
+	_ = metricsSrv.Close()
+	// TODO: 优雅关闭 HTTP/HTTPS、SOCKS5、healthcheck 等
 }
