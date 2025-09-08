@@ -7,20 +7,20 @@
 ```
 proxyServer/                         # 仓库根目录
 ├─ apps/                             # 子项目目录
-│  ├─ proxy-server/             # Go 后端
-│  │  ├─ cmd/proxy-server/ # 主程序入口 (main.go)
-│  │  ├─ internal/               # 内部包
-│  │  │  ├─ httpproxy/       # HTTP/HTTPS 代理逻辑
-│  │  │  ├─ socks5proxy/   # SOCKS5 代理逻辑
-│  │  │  ├─ rules/              # 域名黑白名单/拦截规则
-│  │  │  └─ docs/              # swagger 自动生成文档
-│  │  ├─ bin/                     # 编译产物
+│  ├─ proxy-server/                  # Go 后端
+│  │  ├─ cmd/proxy-server/           # 主程序入口 (main.go)
+│  │  ├─ internal/                   # 内部包
+│  │  │  ├─ httpproxy/               # HTTP/HTTPS 代理逻辑
+│  │  │  ├─ socks5proxy/             # SOCKS5 代理逻辑
+│  │  │  ├─ rules/                   # 域名黑白名单/拦截规则
+│  │  │  └─ docs/                    # swagger 自动生成文档
+│  │  ├─ bin/                        # 编译产物
 │  │  └─ ... 其他 Go 源码
 │  │
-│  └─ dashboard/                # Vue 前端
-│     ├─ public/                   # 静态资源
-│     ├─ src/                      # Vue 源码
-│     ├─ dist/                     # 前端打包产物
+│  └─ dashboard/                     # Vue 前端
+│     ├─ public/                     # 静态资源
+│     ├─ src/                        # Vue 源码
+│     ├─ dist/                       # 前端打包产物
 │
 └─ README.md
 ```
