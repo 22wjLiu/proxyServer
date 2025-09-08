@@ -2,7 +2,10 @@ module github.com/22wjLiu/proxy-server
 
 go 1.23.2
 
-require github.com/swaggo/swag v1.16.3
+require (
+	github.com/swaggo/swag v1.16.3
+	gopkg.in/yaml.v3 v3.0.0
+)
 
 require (
 	github.com/KyleBanks/depth v1.2.1 // indirect
