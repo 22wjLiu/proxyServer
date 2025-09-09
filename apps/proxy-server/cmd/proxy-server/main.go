@@ -8,12 +8,13 @@ import (
 	"syscall"
 	"time"
 
-	"proxy/internal/config"
-	"proxy/internal/logging"
-	"proxy/internal/metrics"
-	httpproxy "proxy/internal/proxy/http" // alias as httpproxy
-	socks5proxy "proxy/internal/proxy/socks5"
-	"proxy/internal/upstream"
+	"github.com/22wjLiu/proxyServer/internal/config"
+	"github.com/22wjLiu/proxyServer/internal/logging"
+	"github.com/22wjLiu/proxyServer/internal/metrics"
+	"github.com/22wjLiu/proxyServer/internal/dashboard"
+	httpproxy "github.com/22wjLiu/proxyServer/internal/proxy/http"
+	socks5proxy "github.com/22wjLiu/proxyServer/internal/proxy/socks5"
+	"github.com/22wjLiu/proxyServer/internal/upstream"
 )
 
 // @title           Proxy Server API
@@ -23,10 +24,11 @@ import (
 
 func main() {
 	// 1) 加载配置
-	cfgPath := os.Getenv("PROXY_CONFIG")
+	cfgPath := os.Getenv("PROXY_SERVER_CONFIG")
 	if cfgPath == "" {
-		cfgPath = "configs/config.example.yaml"
+		cfgPath = "config/config.yaml"
 	}
+
 	cfg, err := config.Load(cfgPath)
 	if err != nil {
 		log.Fatalf("load config: %v", err)
@@ -50,6 +52,7 @@ func main() {
 			logger.Errorf("metrics serve: %v", err)
 		}
 	}()
+	
 	// 4) 初始化上游池（负载均衡 + 健康检查）
 	upPool := upstream.NewPool(cfg.Upstream, logger)
 	go upPool.StartHealthCheck()
@@ -79,7 +82,7 @@ func main() {
 	if cfg.Dashboard.Enable {
 		go func() {
 			logger.Infof("dashboard serving at %s", cfg.Dashboard.Listen)
-			if err := serveDashboard(cfg); err != nil {
+			if err := dashboard.Serve(cfg.Dashboard.Listen, http.Dir("public")); err != nil {
 				logger.Errorf("dashboard: %v", err)
 			}
 		}()

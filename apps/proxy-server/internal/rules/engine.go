@@ -1,8 +1,29 @@
 package rules
-ReasonTLD Reason = "tld"
-ReasonKeyword Reason = "keyword"
+
+
+import (
+	"net"
+	"strings"
 )
 
+
+type Config struct {
+	Whitelist []string
+	Blacklist []string
+	TLD []string
+	Keywords []string
+}
+
+
+type Reason string
+
+
+const (
+	ReasonWhitelist Reason = "whitelist"
+	ReasonBlacklist Reason = "blacklist"
+	ReasonTLD Reason = "tld"
+	ReasonKeyword Reason = "keyword"
+)
 
 type Verdict struct {
 	Allow bool

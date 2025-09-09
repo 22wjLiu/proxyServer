@@ -1,14 +1,19 @@
 package logging
 
 
-import "log"
+import (
+	"log"
+	"strings"
+
+	"github.com/22wjLiu/proxyServer/internal/config"
+)
 
 
 type Logger struct{ level string }
 
 
-func New(c struct{ Level string }) *Logger {
-	return &Logger{level: c.Level}
+func New(c config.Logging) *Logger {
+	return &Logger{level: strings.ToLower(c.Level)}
 }
 
 func (l *Logger) Debugf(f string, v ...any) {

@@ -1,14 +1,56 @@
 package http
-TLSHandshakeTimeout: cfg.Timeouts.TLSHandshake,
-ResponseHeaderTimeout: cfg.Timeouts.ResponseHeader,
-IdleConnTimeout: cfg.Timeouts.IdleConn,
-MaxIdleConns: 200,
-MaxIdleConnsPerHost: 64,
-ForceAttemptHTTP2: true,
-}
-return &http.Server{Addr: cfg.Listen.HTTP, Handler: h}
+
+
+import (
+	"context"
+	"io"
+	"net"
+	"net/http"
+	"strings"
+	"time"
+
+
+	"github.com/22wjLiu/proxyServer/internal/config"
+	"github.com/22wjLiu/proxyServer/internal/logging"
+	"github.com/22wjLiu/proxyServer/internal/metrics"
+	"github.com/22wjLiu/proxyServer/internal/proxy/common"
+	"github.com/22wjLiu/proxyServer/internal/rules"
+	"github.com/22wjLiu/proxyServer/internal/upstream"
+)
+
+
+type Server struct { *http.Server }
+
+
+type handler struct {
+	cfg *config.Config
+	log *logging.Logger
+	m *metrics.Registry
+	up *upstream.Pool
+	judge *rules.Engine
+	transport *http.Transport
 }
 
+
+func NewServer(cfg *config.Config, log *logging.Logger, m *metrics.Registry, up *upstream.Pool) *http.Server {
+	h := &handler{cfg: cfg, log: log, m: m, up: up, judge: rules.New(rules.Config{
+		Whitelist: cfg.ACL.Whitelist,
+		Blacklist: cfg.ACL.Blacklist,
+		TLD: cfg.ACL.TLD,
+		Keywords: cfg.ACL.Keywords,
+	})}
+	h.transport = &http.Transport{
+		Proxy: nil, // 作为前置代理
+		DialContext: (&net.Dialer{Timeout: cfg.Timeouts.Dial, KeepAlive: cfg.Timeouts.KeepAlive}).DialContext,
+		TLSHandshakeTimeout: cfg.Timeouts.TLSHandshake,
+		ResponseHeaderTimeout: cfg.Timeouts.ResponseHeader,
+		IdleConnTimeout: cfg.Timeouts.IdleConn,
+		MaxIdleConns: 200,
+		MaxIdleConnsPerHost: 64,
+		ForceAttemptHTTP2: true,
+	}
+	return &http.Server{Addr: cfg.Listen.HTTP, Handler: h}
+}
 
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	start := time.Now(); h.m.OnStart(); defer h.m.OnEnd(start)

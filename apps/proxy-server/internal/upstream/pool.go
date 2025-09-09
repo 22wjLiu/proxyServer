@@ -1,5 +1,14 @@
 package upstream
 
+import (
+	"net"
+	"net/url"
+	"sync"
+	"time"
+	
+	"github.com/22wjLiu/proxyServer/internal/config"
+	"github.com/22wjLiu/proxyServer/internal/logging"
+)
 
 type Node struct {
 	URL *url.URL
@@ -19,26 +28,30 @@ type Pool struct {
 	}
 }
 
-
-type Config struct {
-	HTTP []string
-	SOCKS5 []string
-	Algo string
-	Health struct { Interval, Timeout time.Duration }
-}
-
-
-func NewPool(c struct{ HTTP, SOCKS5 []string; Algo string; Health struct{ Interval, Timeout time.Duration } }, log *logging.Logger) *Pool {
+func NewPool(c config.Upstream, log *logging.Logger) *Pool {
 	p := &Pool{algo: c.Algo, log: log}
 	p.cfg.interval = c.Health.Interval
 	p.cfg.timeout = c.Health.Timeout
-	// 解析 URL 列表
+
+    // ➤ 默认值兜底
+    if p.cfg.interval == 0 {
+        p.cfg.interval = 10 * time.Second
+    }
+    if p.cfg.timeout == 0 {
+        p.cfg.timeout = 2 * time.Second
+    }
+
 	for _, raw := range append(c.HTTP, c.SOCKS5...) {
 		u, err := url.Parse(raw)
-		if err != nil { log.Errorf("bad upstream: %s", raw); continue }
+		if err != nil {
+			log.Errorf("bad upstream: %s", raw)
+			continue
+		}
 		p.nodes = append(p.nodes, &Node{URL: u, Alive: true})
 	}
-	if p.algo == "" { p.algo = "round_robin" }
+	if p.algo == "" {
+		p.algo = "round_robin"
+	}
 	return p
 }
 
@@ -52,10 +65,15 @@ func (p *Pool) Pick() *Node {
 
 
 func (p *Pool) StartHealthCheck() {
-	t := time.NewTicker(p.cfg.interval)
-	for range t.C {
-		p.check()
-	}
+    if p.cfg.interval <= 0 {
+        p.log.Infof("upstream healthcheck disabled (interval<=0)")
+        return
+    }
+    t := time.NewTicker(p.cfg.interval)
+    defer t.Stop()
+    for range t.C {
+        p.check()
+    }
 }
 
 

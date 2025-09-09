@@ -1,5 +1,38 @@
 package socks5
-atypIPv6 = 0x04
+
+
+import (
+	"encoding/binary"
+	"io"
+	"net"
+	"time"
+
+
+	"github.com/22wjLiu/proxyServer/internal/config"
+	"github.com/22wjLiu/proxyServer/internal/logging"
+	"github.com/22wjLiu/proxyServer/internal/metrics"
+	"github.com/22wjLiu/proxyServer/internal/proxy/common"
+	"github.com/22wjLiu/proxyServer/internal/rules"
+	"github.com/22wjLiu/proxyServer/internal/upstream"
+)
+
+
+func ListenAndServe(cfg *config.Config, log *logging.Logger, m *metrics.Registry, up *upstream.Pool) error {
+	ln, err := net.Listen("tcp", cfg.Listen.SOCKS5)
+	if err != nil { return err }
+	for {
+		c, err := ln.Accept(); if err != nil { log.Errorf("socks accept: %v", err); continue }
+		go handleConn(cfg, log, m, up, c)
+	}
+}
+
+
+const (
+	ver5 = 0x05
+	cmdConnect = 0x01
+	atypIPv4 = 0x01
+	atypDomain = 0x03
+	atypIPv6 = 0x04
 )
 
 
