@@ -25,9 +25,8 @@ import (
 
 // @title           Proxy Server API
 // @version         1.0
-// @description     HTTP代理 + 规则拦截 + 指标接口
+// @description     HTTP代理 + SOCKS5代理 + 规则拦截 + 监控仪表盘
 // @BasePath        /
-
 func main() {
 	// == 读取命令行参数 ==
 	var cfgPath string
@@ -36,27 +35,22 @@ func main() {
 	// == 加载配置 ==
 	cfg, err := config.Load(cfgPath)
 	if err != nil {
-		log.Fatalf("加载配置文件失败: %v", err)
+		log.Fatalf("配置解析失败: %v", err)
 	}
+
+	log.Printf("配置解析成功，配置文件路径： %s", cfgPath)
 
 	// == 初始化日志 ==
-	if cfg.Logging.Level == "" {
-		cfg.Logging.Level = "Info"
-	}
 	logger := logging.New(cfg.Logging)
-	logger.Infof("配置文件加载成功: %s", cfgPath)
 
 	// == 初始化依赖 ==
-	// 指标
-	metrics.MustRegisterAll()
-
 	// 规则引擎
 	judge := rules.NewEngine(cfg.ACL)
 
 	// 上游池
 	up := upstream.NewPool(cfg.Upstream, logger, judge)
 
-	// ========= HTTP 代理 =========
+	// HTTP 代理
 	httpProxyHandler := httpproxy.NewHTTPHandler(cfg, logger, up, judge)
 	httpSrv := &http.Server{
 		Addr:              cfg.HTTP.Listen,
@@ -64,7 +58,7 @@ func main() {
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 
-	// ========= 管理 API (Gin + Swagger) =========
+	// 管理 API
 	adminRouter := admin.NewRouter(up, judge) // 里面设置 /api/* 与 /swagger/*
 	adminSrv := &http.Server{
 		Addr:              cfg.Admin.Listen,
@@ -72,13 +66,15 @@ func main() {
 		ReadHeaderTimeout: 10 * time.Second,
 	}
 		
-	// ========= SOCKS5 监听 =========
+	// SOCKS5
 	socksLn, err := net.Listen("tcp", cfg.SOCKS5.Listen)
 	if err != nil {
 		log.Fatalf("socks5 监听出错 %s: %v", cfg.SOCKS5.Listen, err)
 	}
 
-	// ========= metrics 监听 =========
+	// 指标
+	metrics.MustRegisterAll()
+
 	if cfg.Metrics.Listen == "" {
 		log.Fatalf("未配置 指标 监听端口: metrics.listen")
 	}

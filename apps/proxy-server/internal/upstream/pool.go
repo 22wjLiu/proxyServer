@@ -29,30 +29,27 @@ type Pool struct {
 	mu sync.RWMutex
 	algo string
 	nodes []*Node
-	log *logging.Logger
+	logger *logging.Logger
 	cfg struct {
 		interval time.Duration
 		timeout time.Duration
 	}
 }
 
-func NewPool(c config.Upstream, log *logging.Logger, judge *rules.Engine) *Pool {
-	p := &Pool{algo: c.Algo, log: log}
+func NewPool(c config.Upstream, logger *logging.Logger, judge *rules.Engine) *Pool {
+	if !c.Enable {
+		logger.Debugf("检测到未启用上游池")
+		return nil
+	}
+
+	p := &Pool{algo: c.Algo, logger: logger}
 	p.cfg.interval = c.Health.Interval
 	p.cfg.timeout = c.Health.Timeout
-
-    // ➤ 默认值兜底
-    if p.cfg.interval == 0 {
-        p.cfg.interval = 10 * time.Second
-    }
-    if p.cfg.timeout == 0 {
-        p.cfg.timeout = 2 * time.Second
-    }
 
 	for _, raw := range append(c.HTTP, c.SOCKS5...) {
 		u, err := url.Parse(raw)
 		if err != nil {
-			log.Errorf("bad upstream: %s", raw)
+			logger.Errorf("bad upstream: %s", raw)
 			continue
 		}
 		p.nodes = append(p.nodes, &Node{URL: u, Alive: true})
@@ -74,7 +71,7 @@ func (p *Pool) Pick() *Node {
 
 func (p *Pool) StartHealthCheck() {
     if p.cfg.interval <= 0 {
-        p.log.Infof("upstream healthcheck disabled (interval<=0)")
+        p.logger.Infof("upstream healthcheck disabled (interval<=0)")
         return
     }
     t := time.NewTicker(p.cfg.interval)

@@ -1,18 +1,46 @@
+# 日志级别
+logging:
+  level: "debug"       # info | debug
+
+# 上游池
+upstream:
+  enable: false
+  http: []            # e.g. ["http://127.0.0.1:3128"]
+  socks5: []          # e.g. ["socks5://127.0.0.1:1081"]
+  algo: round_robin   # round_robin | least_conn
+  health:
+    interval: 10s     # e.g. 10s
+    timeout: 2s       # e.g. 5s
+
+# http 代理
 http:
-  listen: ":8080"
+  enable: true
+  listen: ":8080"     # e.g. ":8080"
 
+# socks5 代理
 socks5:
-  listen: ":1080"
+  enable: true
+  listen: ":1080"     # e.g. ":1080"
 
+# 连接配置
 timeouts:
-  dial: 10s
-  keepAlive: 30s
-  tlsHandshake: 10s
-  respHeader: 30s
-  idleConn: 90s
+  dial: 10s           # e.g. 10s
+  keepAlive: 30s      # e.g. 30s
+  tlsHandshake: 10s   # e.g. 10s
+  respHeader: 30s     # e.g. 30s
+  idleConn: 90s       # e.g. 90s
+
+# 管理 API + 面板
+admin:
+  enable: true
+  listen: ":8088"
+
+# 指标 API
+metrics:
+  listen: ":9090"
 
 auth:
-  http_basic: null # { username: "u", password: "p" }
+  http_basic: null      # { username: "u", password: "p" }
   socks5_userpass: null # { username: "u", password: "p" }
 
 acl:
@@ -21,26 +49,8 @@ acl:
   tld: [".xxx", ".adult"]
   keywords: ["ads", "porn", "sex", "track"]
 
-
-upstream:
-  http: [] # e.g. ["http://127.0.0.1:3128"]
-  socks5: [] # e.g. ["socks5://127.0.0.1:1081"]
-  algo: round_robin # round_robin | least_conn
-
-health:
-  interval: 10s
-  timeout: 2s
-
 ratelimit:
   global_qps: 0
   per_ip_qps: 0
 
-metrics:
-  listen: ":9090"
 
-admin:
-  enable: true
-  listen: ":8088"
-
-logging:
-  level: "info" # 有 info | debug 两种级别
