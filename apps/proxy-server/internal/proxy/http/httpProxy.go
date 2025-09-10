@@ -1,6 +1,5 @@
 package http
 
-
 import (
 	"context"
 	"io"
@@ -8,7 +7,6 @@ import (
 	"net/http"
 	"strings"
 	"time"
-
 
 	"github.com/22wjLiu/proxyServer/internal/config"
 	"github.com/22wjLiu/proxyServer/internal/logging"
@@ -18,79 +16,152 @@ import (
 	"github.com/22wjLiu/proxyServer/internal/upstream"
 )
 
-
-type Server struct { *http.Server }
-
-
 type handler struct {
-	cfg *config.Config
-	log *logging.Logger
-	m *metrics.Registry
-	up *upstream.Pool
-	judge *rules.Engine
+	cfg       *config.Config
+	log       *logging.Logger
+	up        *upstream.Pool
+	judge     *rules.Engine
 	transport *http.Transport
 }
 
-
-func NewServer(cfg *config.Config, log *logging.Logger, m *metrics.Registry, up *upstream.Pool) *http.Server {
-	h := &handler{cfg: cfg, log: log, m: m, up: up, judge: rules.New(rules.Config{
-		Whitelist: cfg.ACL.Whitelist,
-		Blacklist: cfg.ACL.Blacklist,
-		TLD: cfg.ACL.TLD,
-		Keywords: cfg.ACL.Keywords,
-	})}
+func NewHTTPHandler(cfg *config.Config, log *logging.Logger, up *upstream.Pool, judge *rules.Engine) http.Handler {
+	h := &handler{
+		cfg:   cfg,
+		log:   log,
+		up:    up,
+		judge: judge,
+	}
 	h.transport = &http.Transport{
-		Proxy: nil, // 作为前置代理
-		DialContext: (&net.Dialer{Timeout: cfg.Timeouts.Dial, KeepAlive: cfg.Timeouts.KeepAlive}).DialContext,
+		Proxy:               nil, // 作为前置代理，默认直连；如需走上游池可在 TODO 处注入
+		DialContext:         (&net.Dialer{Timeout: cfg.Timeouts.Dial, KeepAlive: cfg.Timeouts.KeepAlive}).DialContext,
 		TLSHandshakeTimeout: cfg.Timeouts.TLSHandshake,
 		ResponseHeaderTimeout: cfg.Timeouts.ResponseHeader,
-		IdleConnTimeout: cfg.Timeouts.IdleConn,
-		MaxIdleConns: 200,
-		MaxIdleConnsPerHost: 64,
-		ForceAttemptHTTP2: true,
+		IdleConnTimeout:       cfg.Timeouts.IdleConn,
+		MaxIdleConns:          200,
+		MaxIdleConnsPerHost:   64,
+		ForceAttemptHTTP2:     true,
 	}
-	return &http.Server{Addr: cfg.Listen.HTTP, Handler: h}
+	return h
 }
 
 func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	start := time.Now(); h.m.OnStart(); defer h.m.OnEnd(start)
-	// 访问控制
-	target := r.Host
-	if target == "" && r.URL != nil { target = r.URL.Host }
-	if v := h.judge.Judge(target); !v.Allow {
-		h.m.OnBlocked(); h.log.Infof("blocked %s by %s", target, v.Reason)
-		http.Error(w, "Forbidden", http.StatusForbidden); return
+	const proxyLabel = "http"
+	method := r.Method
+	start := time.Now()
+
+	// 活跃连接 +1 / -1，记录耗时
+	metrics.ActiveConnections.WithLabelValues(proxyLabel).Inc()
+	defer func() {
+		metrics.ActiveConnections.WithLabelValues(proxyLabel).Dec()
+		metrics.RequestDuration.WithLabelValues(proxyLabel, method).Observe(time.Since(start).Seconds())
+	}()
+
+	// 访问控制（统一用 host 判断）
+	targetHost := r.Host
+	if targetHost == "" && r.URL != nil {
+		targetHost = r.URL.Host
+	}
+	if v := h.judge.Judge(targetHost); !v.Allow {
+		metrics.RequestsTotal.WithLabelValues(proxyLabel, method, "blocked", string(v.Reason)).Inc()
+		h.log.Infof("blocked %s by %s", targetHost, v.Reason)
+		http.Error(w, "Forbidden", http.StatusForbidden)
+		return
 	}
 
-
-	if strings.EqualFold(r.Method, http.MethodConnect) { h.handleConnect(w, r); return }
-
+	// CONNECT 隧道
+	if strings.EqualFold(r.Method, http.MethodConnect) {
+		h.handleConnect(w, r)
+		return
+	}
 
 	// 普通 HTTP 代理
-	r.Header.Del("Proxy-Connection"); r.Header.Del("Proxy-Authenticate"); r.Header.Del("Proxy-Authorization")
+	// 清理代理相关头
+	r.Header.Del("Proxy-Connection")
+	r.Header.Del("Proxy-Authenticate")
+	r.Header.Del("Proxy-Authorization")
+
+	// 追加 X-Forwarded-For
+	if ip, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+		if prior := r.Header.Get("X-Forwarded-For"); prior == "" {
+			r.Header.Set("X-Forwarded-For", ip)
+		} else {
+			r.Header.Set("X-Forwarded-For", prior+", "+ip)
+		}
+	}
+
+	// 复制请求（不要直接改原 *http.Request）
 	outReq := r.Clone(r.Context())
+
+	// 兼容相对 URI：确保 scheme/host 存在
+	if outReq.URL != nil && (outReq.URL.Scheme == "" || outReq.URL.Host == "") {
+		outReq.URL.Scheme = "http"
+		outReq.URL.Host = r.Host
+	}
+
 	resp, err := h.transport.RoundTrip(outReq)
-	if err != nil { http.Error(w, err.Error(), http.StatusBadGateway); return }
+	if err != nil {
+		metrics.RequestsTotal.WithLabelValues(proxyLabel, method, "error", "").Inc()
+		http.Error(w, err.Error(), http.StatusBadGateway)
+		return
+	}
 	defer resp.Body.Close()
-	copyHeader(w.Header(), resp.Header); w.WriteHeader(resp.StatusCode); _, _ = io.Copy(w, resp.Body)
+
+	metrics.RequestsTotal.WithLabelValues(proxyLabel, method, "ok", "").Inc()
+
+	copyHeader(w.Header(), resp.Header)
+	w.WriteHeader(resp.StatusCode)
+	_, _ = io.Copy(w, resp.Body)
 }
 
-
 func (h *handler) handleConnect(w http.ResponseWriter, r *http.Request) {
-	hj, ok := w.(http.Hijacker); if !ok { http.Error(w, "hijacking not supported", http.StatusInternalServerError); return }
-	client, _, err := hj.Hijack(); if err != nil { http.Error(w, err.Error(), http.StatusServiceUnavailable); return }
+	const proxyLabel = "http"
+	const method = "CONNECT"
+
+	// 劫持连接
+	hj, ok := w.(http.Hijacker)
+	if !ok {
+		metrics.RequestsTotal.WithLabelValues(proxyLabel, method, "error", "").Inc()
+		http.Error(w, "hijacking not supported", http.StatusInternalServerError)
+		return
+	}
+	client, _, err := hj.Hijack()
+	if err != nil {
+		metrics.RequestsTotal.WithLabelValues(proxyLabel, method, "error", "").Inc()
+		http.Error(w, err.Error(), http.StatusServiceUnavailable)
+		return
+	}
 	defer client.Close()
-	ctx, cancel := context.WithTimeout(r.Context(), h.cfg.Timeouts.Dial); defer cancel()
+
+	// 拨号到目标
+	ctx, cancel := context.WithTimeout(r.Context(), h.cfg.Timeouts.Dial)
+	defer cancel()
 	server, err := (&net.Dialer{Timeout: h.cfg.Timeouts.Dial}).DialContext(ctx, "tcp", r.Host)
-	if err != nil { _, _ = client.Write([]byte("HTTP/1.1 502 Bad Gateway\r\n\r\n")); return }
+	if err != nil {
+		metrics.RequestsTotal.WithLabelValues(proxyLabel, method, "error", "").Inc()
+		_, _ = client.Write([]byte("HTTP/1.1 502 Bad Gateway\r\n\r\n"))
+		return
+	}
+	defer server.Close()
+
+	// 建立成功
 	_, _ = client.Write([]byte("HTTP/1.1 200 Connection Established\r\n\r\n"))
+	metrics.RequestsTotal.WithLabelValues(proxyLabel, method, "ok", "").Inc()
+
+	// 取消 deadline，转入长连接
+	_ = client.SetDeadline(time.Time{})
+	_ = server.SetDeadline(time.Time{})
+
+	// 双向转发（阻塞至连接结束）
 	common.Pipe(client, server)
 }
 
-
-func copyHeader(dst, src http.Header) { for k, vs := range src { for _, v := range vs { dst.Add(k, v) } } }
-
+func copyHeader(dst, src http.Header) {
+	for k, vs := range src {
+		for _, v := range vs {
+			dst.Add(k, v)
+		}
+	}
+}
 
 // TODO: 支持上游链式代理：根据 up.Pick() 返回的节点重写 DialContext / 使用 x/net/proxy
 // TODO: 支持 IP 白名单/认证（Proxy-Authorization）
-// TODO: 将拦截原因打点分类到 metrics

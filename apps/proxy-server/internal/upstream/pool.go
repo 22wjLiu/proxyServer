@@ -7,6 +7,7 @@ import (
 	"time"
 	
 	"github.com/22wjLiu/proxyServer/internal/config"
+	"github.com/22wjLiu/proxyServer/internal/rules"
 	"github.com/22wjLiu/proxyServer/internal/logging"
 )
 
@@ -16,6 +17,13 @@ type Node struct {
 	Conns int64 // for least-conn
 }
 
+type NodeStatus struct {
+	Type  string `json:"type"`  // http | socks5
+	Addr  string `json:"addr"`  // host:port
+	URL   string `json:"url"`   // 原始URL串（含scheme）
+	Alive bool   `json:"alive"` // 存活
+	Conns int64  `json:"conns"` // 当前连接数（least-conn可用）
+}
 
 type Pool struct {
 	mu sync.RWMutex
@@ -28,7 +36,7 @@ type Pool struct {
 	}
 }
 
-func NewPool(c config.Upstream, log *logging.Logger) *Pool {
+func NewPool(c config.Upstream, log *logging.Logger, judge *rules.Engine) *Pool {
 	p := &Pool{algo: c.Algo, log: log}
 	p.cfg.interval = c.Health.Interval
 	p.cfg.timeout = c.Health.Timeout
@@ -83,6 +91,23 @@ func (p *Pool) check() {
 		alive := probe(n, p.cfg.timeout)
 		n.Alive = alive
 	}
+}
+
+func (p *Pool) Status() []NodeStatus {
+	p.mu.RLock()
+	defer p.mu.RUnlock()
+
+	out := make([]NodeStatus, 0, len(p.nodes))
+	for _, n := range p.nodes {
+		out = append(out, NodeStatus{
+			Type:  n.URL.Scheme,
+			Addr:  n.URL.Host,
+			URL:   n.URL.String(),
+			Alive: n.Alive,
+			Conns: n.Conns,
+		})
+	}
+	return out
 }
 
 

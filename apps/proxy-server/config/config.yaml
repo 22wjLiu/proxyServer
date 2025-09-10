@@ -1,6 +1,8 @@
-listen:
-  http: ":8080"
-  socks5: ":1080"
+http:
+  listen: ":8080"
+
+socks5:
+  listen: ":1080"
 
 timeouts:
   dial: 10s
@@ -8,7 +10,6 @@ timeouts:
   tlsHandshake: 10s
   respHeader: 30s
   idleConn: 90s
-
 
 auth:
   http_basic: null # { username: "u", password: "p" }
@@ -34,15 +35,12 @@ ratelimit:
   global_qps: 0
   per_ip_qps: 0
 
-
 metrics:
   listen: ":9090"
 
-
-dashboard:
+admin:
   enable: true
   listen: ":8088"
 
-
 logging:
-  level: "info"
+  level: "info" # 有 info | debug 两种级别

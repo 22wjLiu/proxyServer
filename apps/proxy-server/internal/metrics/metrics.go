@@ -1,28 +1,44 @@
 package metrics
 
+import "github.com/prometheus/client_golang/prometheus"
 
-import (
-	"sync/atomic"
-	"time"
+var (
+	// 总请求数（按协议、结果、拦截原因做标签）
+	RequestsTotal = prometheus.NewCounterVec(
+		prometheus.CounterOpts{
+			Namespace: "proxy",
+			Name:      "requests_total",
+			Help:      "Total number of requests handled.",
+		},
+		[]string{"proxy", "method", "result", "blocked_reason"}, // result: ok|error|blocked
+	)
+
+	// 活跃连接（按协议）
+	ActiveConnections = prometheus.NewGaugeVec(
+		prometheus.GaugeOpts{
+			Namespace: "proxy",
+			Name:      "active_connections",
+			Help:      "Number of active connections.",
+		},
+		[]string{"proxy"},
+	)
+
+	// 请求时延直方图（1ms~5s）
+	RequestDuration = prometheus.NewHistogramVec(
+		prometheus.HistogramOpts{
+			Namespace: "proxy",
+			Name:      "request_duration_seconds",
+			Help:      "Request latency distributions (seconds).",
+			Buckets: []float64{
+				0.001, 0.002, 0.005, 0.010, 0.020, 0.050,
+				0.100, 0.200, 0.500, 1.0, 2.0, 5.0,
+			},
+		},
+		[]string{"proxy", "method"},
+	)
 )
 
-
-type Registry struct {
-	QPS atomic.Int64
-	Active atomic.Int64
-	Total atomic.Int64
-	Blocked atomic.Int64
-	LatencyP95 int64 // TODO: 替换为分位统计器
-	// TODO: Top 域名统计，拦截原因分类统计
+// 对外暴露一个一次性注册函数
+func MustRegisterAll() {
+	prometheus.MustRegister(RequestsTotal, ActiveConnections, RequestDuration)
 }
-
-
-func NewRegistry() *Registry { return &Registry{} }
-
-
-func (r *Registry) OnStart() { r.Active.Add(1); r.Total.Add(1) }
-func (r *Registry) OnEnd(start time.Time) {
-	r.Active.Add(-1)
-	// TODO: 更新 QPS / 延迟直方图 / P95
-}
-func (r *Registry) OnBlocked() { r.Blocked.Add(1) }

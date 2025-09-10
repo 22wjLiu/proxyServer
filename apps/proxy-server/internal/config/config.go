@@ -8,9 +8,12 @@ import (
     "os"
 )
 
-type Listen struct {
-	HTTP   string `yaml:"http"`
-	SOCKS5 string `yaml:"socks5"`
+type HTTP struct {
+	Listen string `yaml:"listen"`
+}
+
+type SOCKS5 struct {
+	Listen string `yaml:"listen"`
 }
 
 type Timeouts struct {
@@ -64,7 +67,7 @@ type Metrics struct {
 	Listen string `yaml:"listen"`
 }
 
-type Dashboard struct {
+type Admin struct {
 	Enable bool   `yaml:"enable"`
 	Listen string `yaml:"listen"`
 }
@@ -76,14 +79,15 @@ type Logging struct {
 /* ===== 根配置引用上面的命名类型 ===== */
 
 type Config struct {
-	Listen    Listen    `yaml:"listen"`
+	HTTP      HTTP      `yaml:"http"`
+	SOCKS5    SOCKS5    `yaml:"socks5"`
 	Timeouts  Timeouts  `yaml:"timeouts"`
 	Auth      Auth      `yaml:"auth"`
 	ACL       ACL       `yaml:"acl"`
 	Upstream  Upstream  `yaml:"upstream"`
 	RateLimit RateLimit `yaml:"ratelimit"`
 	Metrics   Metrics   `yaml:"metrics"`
-	Dashboard Dashboard `yaml:"dashboard"`
+	Admin     Admin     `yaml:"admin"`
 	Logging   Logging   `yaml:"logging"`
 }
 
