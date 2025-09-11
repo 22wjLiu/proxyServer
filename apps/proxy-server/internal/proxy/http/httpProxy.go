@@ -18,28 +18,28 @@ import (
 
 type handler struct {
 	cfg       *config.Config
-	log       *logging.Logger
+	logger    *logging.Logger
 	up        *upstream.Pool
 	judge     *rules.Engine
 	transport *http.Transport
 }
 
-func NewHTTPHandler(cfg *config.Config, log *logging.Logger, up *upstream.Pool, judge *rules.Engine) http.Handler {
+func NewHTTPHandler(cfg *config.Config, logger *logging.Logger, up *upstream.Pool, judge *rules.Engine) http.Handler {
 	h := &handler{
-		cfg:   cfg,
-		log:   log,
-		up:    up,
-		judge: judge,
+		cfg:   	cfg,
+		logger: logger,
+		up:    	up,
+		judge: 	judge,
 	}
 	h.transport = &http.Transport{
-		Proxy:               nil, // 作为前置代理，默认直连；如需走上游池可在 TODO 处注入
-		DialContext:         (&net.Dialer{Timeout: cfg.Timeouts.Dial, KeepAlive: cfg.Timeouts.KeepAlive}).DialContext,
-		TLSHandshakeTimeout: cfg.Timeouts.TLSHandshake,
-		ResponseHeaderTimeout: cfg.Timeouts.ResponseHeader,
-		IdleConnTimeout:       cfg.Timeouts.IdleConn,
-		MaxIdleConns:          200,
-		MaxIdleConnsPerHost:   64,
-		ForceAttemptHTTP2:     true,
+		Proxy:               	nil, // 作为前置代理，默认直连；如需走上游池可在 TODO 处注入
+		DialContext:         	(&net.Dialer{Timeout: cfg.Timeouts.Dial, KeepAlive: cfg.Timeouts.KeepAlive}).DialContext,
+		TLSHandshakeTimeout: 	cfg.Timeouts.TLSHandshake,
+		ResponseHeaderTimeout: 	cfg.Timeouts.ResponseHeader,
+		IdleConnTimeout:       	cfg.Timeouts.IdleConn,
+		MaxIdleConns:          	200,
+		MaxIdleConnsPerHost:   	64,
+		ForceAttemptHTTP2:     	true,
 	}
 	return h
 }
@@ -49,21 +49,28 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	method := r.Method
 	start := time.Now()
 
-	// 活跃连接 +1 / -1，记录耗时
+	// 活跃连接 +1
 	metrics.ActiveConnections.WithLabelValues(proxyLabel).Inc()
 	defer func() {
+		// 活跃连接 -1，记录耗时
 		metrics.ActiveConnections.WithLabelValues(proxyLabel).Dec()
 		metrics.RequestDuration.WithLabelValues(proxyLabel, method).Observe(time.Since(start).Seconds())
 	}()
 
 	// 访问控制（统一用 host 判断）
+	clientAddr := r.RemoteAddr
 	targetHost := r.Host
 	if targetHost == "" && r.URL != nil {
 		targetHost = r.URL.Host
 	}
+
+	// Debug 日志
+	h.logger.Debugf("%s请求: %s（%s -> %s)", proxyLabel, method, clientAddr, targetHost)
+
+	// 规则判断
 	if v := h.judge.Judge(targetHost); !v.Allow {
 		metrics.RequestsTotal.WithLabelValues(proxyLabel, method, "blocked", string(v.Reason)).Inc()
-		h.log.Infof("blocked %s by %s", targetHost, v.Reason)
+		h.logger.Infof("blocked %s by %s", targetHost, v.Reason)
 		http.Error(w, "Forbidden", http.StatusForbidden)
 		return
 	}
@@ -81,7 +88,7 @@ func (h *handler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	r.Header.Del("Proxy-Authorization")
 
 	// 追加 X-Forwarded-For
-	if ip, _, err := net.SplitHostPort(r.RemoteAddr); err == nil {
+	if ip, _, err := net.SplitHostPort(clientAddr); err == nil {
 		if prior := r.Header.Get("X-Forwarded-For"); prior == "" {
 			r.Header.Set("X-Forwarded-For", ip)
 		} else {

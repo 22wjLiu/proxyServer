@@ -16,10 +16,10 @@ import (
 )
 
 
-func ListenAndServe(ln net.Listener,cfg *config.Config, log *logging.Logger, up *upstream.Pool, judge *rules.Engine) error {
+func ListenAndServe(ln net.Listener,cfg *config.Config, logger *logging.Logger, up *upstream.Pool, judge *rules.Engine) error {
 	for {
-		c, err := ln.Accept(); if err != nil { log.Errorf("socks accept: %v", err); continue }
-		go handleConn(c, cfg, log, up, judge)
+		c, err := ln.Accept(); if err != nil { logger.Errorf("socks5 accept: %v", err); continue }
+		go handleConn(c, cfg, logger, up, judge)
 	}
 }
 
@@ -33,7 +33,7 @@ const (
 )
 
 // 处理连接
-func handleConn(c net.Conn, cfg *config.Config, log *logging.Logger, up *upstream.Pool, judge *rules.Engine) {
+func handleConn(c net.Conn, cfg *config.Config, logger *logging.Logger, up *upstream.Pool, judge *rules.Engine) {
 	// 连接基础信息
 	const proxyLabel = "socks5"
 	const methodLabel = "CONNECT"
@@ -43,6 +43,9 @@ func handleConn(c net.Conn, cfg *config.Config, log *logging.Logger, up *upstrea
 
 	// 记录请求开始时间
 	start := time.Now();
+
+	// 客户端地址
+	clientAddr := c.RemoteAddr().String()
 	
 	// 活跃连接 +1，并在退出时 -1
 	// 同时在退出时统一上报耗时
@@ -138,6 +141,9 @@ func handleConn(c net.Conn, cfg *config.Config, log *logging.Logger, up *upstrea
 	}
 	port := binary.BigEndian.Uint16(buf[:2])
 	target := net.JoinHostPort(host, itoa(int(port)))
+
+	// Debug 日志
+	logger.Debugf("%s请求: %s（%s -> %s)", proxyLabel, methodLabel, clientAddr, target)
 
 	// 访问控制
 	if v := judge.Judge(target); !v.Allow {

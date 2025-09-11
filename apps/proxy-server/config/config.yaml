@@ -39,18 +39,19 @@ admin:
 metrics:
   listen: ":9090"
 
+# 认证
 auth:
   http_basic: null      # { username: "u", password: "p" }
   socks5_userpass: null # { username: "u", password: "p" }
 
+# 访问控制规则
 acl:
   whitelist: ["*.edu", "*.gov"]
   blacklist: ["bad.com", "1.2.3.0/24"] # TODO: IP/CIDR 实现
   tld: [".xxx", ".adult"]
   keywords: ["ads", "porn", "sex", "track"]
 
+# 速率限制
 ratelimit:
   global_qps: 0
   per_ip_qps: 0
-
-

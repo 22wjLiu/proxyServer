@@ -39,6 +39,7 @@ func main() {
 	}
 
 	log.Printf("配置解析成功，配置文件路径： %s", cfgPath)
+	log.Printf("日志级别： %s", cfg.Logging.Level)
 
 	// == 初始化日志 ==
 	logger := logging.New(cfg.Logging)
@@ -87,10 +88,12 @@ func main() {
 
 	// ========= 启动各服务（并发）=========
 	// 上游健康检查
-	go func() {
-		logger.Infof("开启上游健康检查")
-		up.StartHealthCheck()
-	}()
+	if up != nil {
+		go func() {
+			up.StartHealthCheck()
+			logger.Infof("上游健康检查开启")
+		}()
+	}
 
 	// HTTP 代理
 	go func() {

@@ -70,10 +70,6 @@ func (p *Pool) Pick() *Node {
 
 
 func (p *Pool) StartHealthCheck() {
-    if p.cfg.interval <= 0 {
-        p.logger.Infof("upstream healthcheck disabled (interval<=0)")
-        return
-    }
     t := time.NewTicker(p.cfg.interval)
     defer t.Stop()
     for range t.C {
