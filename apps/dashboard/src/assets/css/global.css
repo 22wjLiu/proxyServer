@@ -1,0 +1,150 @@
+/* 基础设置 */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    "PingFang SC",
+    "Noto Sans CJK SC",
+    "Microsoft YaHei",
+    Arial,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  color: var(--fg);
+  background: var(--bg);
+}
+
+/* 布局 */
+:root {
+  --gap: 16px;
+}
+
+/* 颜色主题 */
+:root {
+  color-scheme: light dark;
+}
+
+/* 浅色 */
+:root {
+  /* 语义色 */
+  --bg: #ffffff;
+  --color: #e8eaed;
+
+  /* 功能色 */
+  --primary: #3b82f6;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+
+  /* 边框/分割线/阴影 */
+  --border: #e5e7eb;
+  --ring: #93c5fd;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+
+  /* 卡片/面板 */
+  --card-bg: #fff;
+  --card-border: #e5e7eb;
+
+  /* 滚动条 */
+  --scrollbar: #c7cbd1;
+  --scrollbar-track: #eef1f5;
+}
+
+/* 深色 */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b0e14;
+    --color: #e8eaed;
+
+    --primary: #60a5fa;
+    --success: #28c76f;
+    --warning: #ffd60a;
+    --danger: #ea5455;
+
+    --border: #1f2937;
+    --ring: #2563eb;
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+
+    --card-bg: #121723;
+    --card-border: #1f2533;
+
+    --scrollbar: #4b5563;
+    --scrollbar-track: #0d0f13;
+  }
+}
+
+/* 覆盖主题用 */
+html[data-theme="light"] {
+  color-scheme: light;
+}
+
+html[data-theme="dark"] {
+  color-scheme: dark;
+}
+
+html[data-theme="light"] {
+  --bg: #ffffff;
+  --color: #e8eaed;
+
+  --primary: #3b82f6;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+
+  --border: #e5e7eb;
+  --ring: #93c5fd;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+
+  --card-bg: #fff;
+  --card-border: #e5e7eb;
+
+  --scrollbar: #c7cbd1;
+  --scrollbar-track: #eef1f5;
+}
+
+html[data-theme="dark"] {
+  --bg: #0b0e14;
+  --color: #e8eaed;
+
+  --primary: #60a5fa;
+  --success: #28c76f;
+  --warning: #ffd60a;
+  --danger: #ea5455;
+
+  --border: #1f2937;
+  --ring: #2563eb;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+
+  --card-bg: #121723;
+  --card-border: #1f2533;
+
+  --scrollbar: #4b5563;
+  --scrollbar-track: #0d0f13;
+}
+
+/* 通用类 */
+.muted {
+  opacity: 0.65;
+}
+
+.mono {
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    monospace;
+}

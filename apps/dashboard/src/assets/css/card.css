@@ -1,0 +1,173 @@
+/* 统一设置 */
+.metrics-card,
+.echart-card,
+.upstream-card,
+.rules-card,
+.statistics-card,
+.log-card {
+  flex: 1;
+  background-color: var(--card-bg);
+  border: 1px solid var(--card-border);
+  border-radius: 12px;
+}
+
+.echart-card,
+.upstream-card,
+.rules-card,
+.statistics-card,
+.log-card {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  min-width: 500px;
+  min-height: 180px;
+
+  & > .title {
+    font-weight: 600;
+    font-size: 14px;
+    margin-bottom: 8px;
+    opacity: 0.9;
+  }
+}
+
+/* 指标卡片 */
+.metrics-card {
+  padding: 14px 16px;
+  min-width: 300px;
+
+  & > .title {
+    font-size: 12px;
+    opacity: 0.75;
+  }
+
+  & > .value {
+    font-size: 28px;
+    font-weight: 700;
+    margin: 6px 0;
+  }
+
+  & > .sub {
+    font-size: 12px;
+    opacity: 0.6;
+  }
+}
+
+/* Echart 卡片 */
+.echart-card {
+  & > .chart {
+    flex: 1;
+    min-height: 200px;
+    width: 100%;
+  }
+}
+
+/* 上游健康检查卡片 */
+.upstream-card {
+  & > .list {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--gap) / 2);
+
+    & > li {
+      & > .dot {
+        display: inline-block;
+        width: 8px;
+        height: 8px;
+        border-radius: 50%;
+        margin-right: 8px;
+        position: relative;
+        top: -1px;
+
+        &.ok {
+          background-color: var(--success);
+        }
+
+        &.bad {
+          background-color: var(--danger);
+        }
+      }
+    }
+  }
+}
+
+/* 规则/统计卡片 */
+.rules-card,
+.statistics-card {
+  & > .kv {
+    display: flex;
+    flex-direction: column;
+    gap: calc(var(--gap) / 2);
+
+    > div {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 13px;
+    }
+
+    & span {
+      opacity: 0.75;
+    }
+  }
+}
+
+/* 日志卡片 */
+.log-card {
+  flex: 2;
+
+  & > .logs {
+    font-size: 12px;
+    line-height: 1.6;
+    max-height: 240px;
+    overflow: auto;
+
+    & > .logline {
+      display: grid;
+      grid-template-columns: 84px 70px 1fr auto auto auto auto;
+      gap: var(--gap);
+      padding: 4px 0;
+      border-bottom: 1px dashed #1c2230;
+
+      & > .badge {
+        padding: 1px 6px;
+        border-radius: 999px;
+        font-size: 11px;
+      }
+
+      & > .badge.ok {
+        background: rgba(40, 199, 111, 0.1);
+        color: var(--success);
+      }
+
+      & > .badge.bad {
+        background: rgba(234, 84, 85, 0.1);
+        color: var(--danger);
+      }
+
+      & > .tag {
+        margin-left: 6px;
+        padding: 1px 6px;
+        border-radius: 6px;
+        background: rgba(255, 214, 10, 0.12);
+        color: var(--warning);
+      }
+
+      & span {
+        white-space: nowrap;
+      }
+    }
+  }
+}
+
+@media (max-width: 560px) {
+  .echart-card,
+  .upstream-card,
+  .rules-card,
+  .statistics-card,
+  .log-card {
+    min-width: 300px;
+  }
+}

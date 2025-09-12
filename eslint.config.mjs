@@ -13,34 +13,11 @@ export default tseslint.config(
       '**/dist/**',
       '**/bin/**',
       'apps/proxy-server/**',
-      'apps/dashboard/src/api/generated/**', // openapi 生成代码（可选忽略）
+      'apps/dashboard/src/api/generated/**',
     ],
   },
 
-  // 仅 dashboard 前端
-  // 1) 处理 .vue：外层用 vue-eslint-parser，内部脚本交给 ts 解析
-  {
-    files: ['apps/dashboard/**/*.vue'],
-    languageOptions: {
-      parser: vueParser,
-      parserOptions: {
-        parser: tseslint.parser,           // 让 <script lang="ts"> 用 TS 解析器
-        ecmaVersion: 'latest',
-        sourceType: 'module',
-        extraFileExtensions: ['.vue'],
-      },
-      globals: { ...globals.browser, ...globals.node },
-    },
-    extends: [
-      ...vue.configs['flat/recommended'],  // Vue 推荐规则（兼容 ESLint 9）
-      ...tseslint.configs.recommended,     // TS 基础规则（不启用 type-checked 版本，简单稳定）
-    ],
-    rules: {
-      // 你的自定义规则…
-    },
-  },
-
-  // 2) 处理纯 ts/js 文件
+  // 先给所有 .ts/.js 一个基础规则（不匹配 .vue）
   {
     files: ['apps/dashboard/**/*.{ts,js}'],
     languageOptions: {
@@ -53,7 +30,35 @@ export default tseslint.config(
     },
     extends: [
       js.configs.recommended,
-      ...tseslint.configs.recommended,
+      ...tseslint.configs.recommended, // 非 type-checked 版本
     ],
+  },
+
+  // 专门处理 .vue（外层 vue-parser，内层脚本交给 TS 解析）
+  {
+    files: ['apps/dashboard/**/*.vue'],
+    languageOptions: {
+      parser: vueParser,
+      parserOptions: {
+        parser: tseslint.parser,
+        ecmaVersion: 'latest',
+        sourceType: 'module',
+        extraFileExtensions: ['.vue'],
+      },
+      globals: { ...globals.browser, ...globals.node },
+    },
+    plugins: { vue },
+    extends: [
+      ...vue.configs['flat/recommended'], // ESLint 9 兼容的 Vue 推荐规则
+    ],
+    rules: {
+      // 你要关掉的这条
+      'vue/singleline-html-element-content-newline': 'off',
+      // 通常一起放宽的几条（可选）
+      'vue/max-attributes-per-line': 'off',
+      'vue/html-self-closing': ['warn', {
+        html: { void: 'always', normal: 'never', component: 'always' },
+      }],
+    },
   },
 )

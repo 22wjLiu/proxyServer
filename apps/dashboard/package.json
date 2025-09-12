@@ -7,7 +7,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint --ext .ts,.vue src",
+    "lint": "eslint apps/dashboard --ext .ts,.js,.vue",
+    "lint:fix": "eslint apps/dashboard --ext .ts,.js,.vue --fix",
     "gen:api": "openapi -i ../proxy-server/internal/docs/swagger.json -o src/api/generated -c axios --name ProxyApi"
   },
   "dependencies": {

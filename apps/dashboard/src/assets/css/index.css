@@ -1,0 +1,45 @@
+.dashboard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--gap);
+  padding: 16px;
+  min-height: 100vh;
+  background-color: var(--bg);
+  color: var(--color);
+
+  & > section {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--gap);
+    background-color: transparent;
+
+    &.second-session,
+    &:last-child {
+      min-height: 180px;
+    }
+  }
+}
+
+@media (max-width: 1560px) {
+  .dashboard {
+    & > section.second-session {
+      & > div:nth-child(3) {
+        order: 3;
+      }
+
+      & > div:last-child {
+        order: 6;
+      }
+    }
+  }
+}
+
+@media (max-width: 560px) {
+  .dashboard {
+    & > section:last-child {
+      & > div.log-card {
+        order: 2;
+      }
+    }
+  }
+}

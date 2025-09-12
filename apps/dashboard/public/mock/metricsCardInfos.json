@@ -1,0 +1,26 @@
+[
+  {
+    "key": "qps",
+    "title": "当前 QPS",
+    "value": "182",
+    "sub": "峰值 540"
+  },
+  {
+    "key": "conns",
+    "title": "并发连接",
+    "value": "1,204",
+    "sub": "峰值 3,102"
+  },
+  {
+    "key": "lat95",
+    "title": "p95 延迟",
+    "value": "86 ms",
+    "sub": "平均 38 ms"
+  },
+  {
+    "key": "blocked",
+    "title": "今日拦截",
+    "value": "3,487",
+    "sub": "占比 12.4%"
+  }
+]
