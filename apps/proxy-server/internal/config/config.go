@@ -59,10 +59,6 @@ type Admin struct {
 	Listen string `yaml:"listen"`
 }
 
-type Metrics struct {
-	Listen string `yaml:"listen"`
-}
-
 type HTTPBasic struct {
 	Username string `yaml:"username"`
 	Password string `yaml:"password"`
@@ -101,7 +97,6 @@ type Config struct {
 	Auth      Auth      `yaml:"auth"`
 	ACL       ACL       `yaml:"acl"`
 	RateLimit RateLimit `yaml:"ratelimit"`
-	Metrics   Metrics   `yaml:"metrics"`
 	Admin     Admin     `yaml:"admin"`
 }
 

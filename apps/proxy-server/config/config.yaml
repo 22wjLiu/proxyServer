@@ -35,10 +35,6 @@ admin:
   enable: true
   listen: ":8088"
 
-# 指标 API
-metrics:
-  listen: ":9090"
-
 # 认证
 auth:
   http_basic: null      # { username: "u", password: "p" }

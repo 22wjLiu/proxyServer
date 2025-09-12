@@ -45,6 +45,9 @@ func main() {
 	logger := logging.New(cfg.Logging)
 
 	// == 初始化依赖 ==
+	// 指标
+	metrics.MustRegisterAll()
+
 	// 规则引擎
 	judge := rules.NewEngine(cfg.ACL)
 
@@ -60,7 +63,7 @@ func main() {
 	}
 
 	// 管理 API
-	adminRouter := admin.NewRouter(up, judge) // 里面设置 /api/* 与 /swagger/*
+	adminRouter := admin.NewRouter(up, judge)
 	adminSrv := &http.Server{
 		Addr:              cfg.Admin.Listen,
 		Handler:           adminRouter,
@@ -71,19 +74,6 @@ func main() {
 	socksLn, err := net.Listen("tcp", cfg.SOCKS5.Listen)
 	if err != nil {
 		log.Fatalf("socks5 监听出错 %s: %v", cfg.SOCKS5.Listen, err)
-	}
-
-	// 指标
-	metrics.MustRegisterAll()
-
-	if cfg.Metrics.Listen == "" {
-		log.Fatalf("未配置 指标 监听端口: metrics.listen")
-	}
-	metricsMux := http.NewServeMux()
-	metricsMux.Handle("/metrics", promhttp.Handler())
-	metricsSrv := &http.Server{
-		Addr:    cfg.Metrics.Listen,
-		Handler: metricsMux,
 	}
 
 	// ========= 启动各服务（并发）=========
@@ -109,16 +99,6 @@ func main() {
 		socks5proxy.ListenAndServe(socksLn, cfg, logger, up, judge) // 阻塞：内部 Accept 循环
 	}()
 
-	// metrics
-	if metricsSrv != nil {
-		go func() {
-			logger.Infof("指标 监听端口 %s", cfg.Metrics.Listen)
-			if err := metricsSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-				log.Fatalf("指标 监听出错: %v", err)
-			}
-		}()
-	}
-
 	// 管理 API
 	go func() {
 		logger.Infof("管理 API 监听端口 %s (Swagger: /swagger/index.html)", cfg.Admin.Listen)
@@ -139,9 +119,6 @@ func main() {
 	_ = httpSrv.Shutdown(ctx)
 	_ = adminSrv.Shutdown(ctx)
 	_ = socksLn.Close()
-	if metricsSrv != nil {
-		_ = metricsSrv.Shutdown(ctx)
-	}
 
 	log.Println("关闭成功")
 }
