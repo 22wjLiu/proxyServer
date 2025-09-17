@@ -2,14 +2,18 @@
 /* istanbul ignore file */
 /* tslint:disable */
 /* eslint-disable */
-export { ProxyApi } from "./ProxyApi";
-
 export { ApiError } from "./core/ApiError";
-export { BaseHttpRequest } from "./core/BaseHttpRequest";
 export { CancelablePromise, CancelError } from "./core/CancelablePromise";
 export { OpenAPI } from "./core/OpenAPI";
 export type { OpenAPIConfig } from "./core/OpenAPI";
 
-export type { metrics_StatsResponse } from "./models/metrics_StatsResponse";
+export type { handlers_HistogramPoint } from "./models/handlers_HistogramPoint";
+export type { handlers_MetricPoint } from "./models/handlers_MetricPoint";
+export type { handlers_MetricsJSON } from "./models/handlers_MetricsJSON";
+export type { handlers_NodeStatus } from "./models/handlers_NodeStatus";
+export type { handlers_RulesInfo } from "./models/handlers_RulesInfo";
+export type { response_VO } from "./models/response_VO";
 
-export { StatsService } from "./services/StatsService";
+export { MetricsService } from "./services/MetricsService";
+export { RulesService } from "./services/RulesService";
+export { UpstreamsService } from "./services/UpstreamsService";

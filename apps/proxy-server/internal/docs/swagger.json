@@ -1,23 +1,146 @@
 {
   "swagger": "2.0",
   "info": {
-    "description": "HTTP代理 + 规则拦截 + 指标接口",
+    "description": "HTTP代理 + SOCKS5代理 + 规则拦截 + 监控仪表盘",
     "title": "Proxy Server API",
     "contact": {},
     "version": "1.0"
   },
   "basePath": "/",
   "paths": {
-    "/api/stats": {
+    "/api/metrics": {
       "get": {
+        "description": "返回请求数、延迟、并发等 JSON 格式的指标",
         "produces": ["application/json"],
-        "tags": ["stats"],
-        "summary": "Get runtime stats",
+        "tags": ["Metrics"],
+        "summary": "获取代理运行指标",
         "responses": {
           "200": {
             "description": "OK",
             "schema": {
-              "$ref": "#/definitions/metrics.StatsResponse"
+              "allOf": [
+                {
+                  "$ref": "#/definitions/response.VO"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/definitions/handlers.MetricsJSON"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "500": {
+            "description": "获取指标失败",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/response.VO"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "/api/rules": {
+      "get": {
+        "description": "返回当前配置的关键词、TLD、黑名单、白名单信息",
+        "produces": ["application/json"],
+        "tags": ["Rules"],
+        "summary": "获取当前规则信息",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/response.VO"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/definitions/handlers.RulesInfo"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "500": {
+            "description": "获取规则信息失败",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/response.VO"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    },
+    "/api/upstreams": {
+      "get": {
+        "description": "返回上游链接包括链接协议、路径和是否存活等",
+        "produces": ["application/json"],
+        "tags": ["Upstreams"],
+        "summary": "获取上游池信息",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/response.VO"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "data": {
+                      "$ref": "#/definitions/handlers.NodeStatus"
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "500": {
+            "description": "获取上游池信息失败",
+            "schema": {
+              "allOf": [
+                {
+                  "$ref": "#/definitions/response.VO"
+                },
+                {
+                  "type": "object",
+                  "properties": {
+                    "message": {
+                      "type": "string"
+                    }
+                  }
+                }
+              ]
             }
           }
         }
@@ -25,28 +148,146 @@
     }
   },
   "definitions": {
-    "metrics.StatsResponse": {
+    "handlers.HistogramPoint": {
       "type": "object",
       "properties": {
-        "avgLatencyMs": {
+        "buckets": {
+          "description": "上界 -\u003e 累计计数",
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "format": "int64"
+          }
+        },
+        "count": {
+          "type": "integer"
+        },
+        "labels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "sum": {
+          "type": "number"
+        }
+      }
+    },
+    "handlers.MetricPoint": {
+      "type": "object",
+      "properties": {
+        "labels": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "string"
+          }
+        },
+        "value": {
+          "type": "number"
+        }
+      }
+    },
+    "handlers.MetricsJSON": {
+      "type": "object",
+      "properties": {
+        "counters": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/handlers.MetricPoint"
+            }
+          }
+        },
+        "gauges": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/handlers.MetricPoint"
+            }
+          }
+        },
+        "histograms": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/handlers.HistogramPoint"
+            }
+          }
+        }
+      }
+    },
+    "handlers.NodeStatus": {
+      "type": "object",
+      "properties": {
+        "addr": {
+          "description": "host:port",
+          "type": "string"
+        },
+        "alive": {
+          "description": "存活",
+          "type": "boolean"
+        },
+        "conns": {
+          "description": "当前连接数（least-conn可用）",
+          "type": "integer"
+        },
+        "type": {
+          "description": "http | socks5",
+          "type": "string"
+        },
+        "url": {
+          "description": "原始URL串（含scheme）",
+          "type": "string"
+        }
+      }
+    },
+    "handlers.RulesInfo": {
+      "type": "object",
+      "properties": {
+        "blacklist": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "keywords": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "tld": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "whitelist": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "response.VO": {
+      "type": "object",
+      "properties": {
+        "code": {
           "type": "integer",
-          "example": 18
+          "example": 200
         },
-        "blockRate": {
-          "type": "number",
-          "example": 0.13
+        "data": {},
+        "message": {
+          "type": "string",
+          "example": "OK"
         },
-        "concurrent": {
+        "timestamp": {
           "type": "integer",
-          "example": 42
-        },
-        "p95LatencyMs": {
-          "type": "integer",
-          "example": 45
-        },
-        "qps": {
-          "type": "number",
-          "example": 12.3
+          "example": 1757664315
         }
       }
     }

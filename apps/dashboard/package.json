@@ -7,13 +7,20 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "lint": "eslint --ext .ts,.vue src",
-    "gen:api": "openapi -i ../proxy-server/internal/docs/swagger.json -o src/api/generated -c axios --name ProxyApi"
+    "lint": "eslint apps/dashboard --ext .ts,.js,.vue",
+    "lint:fix": "eslint apps/dashboard --ext .ts,.js,.vue --fix",
+    "gen:api": "openapi -i ../proxy-server/internal/docs/swagger.json -o src/api/generated --client axios"
   },
   "dependencies": {
+    "form-data": "^4.0.4",
+    "lodash-es": "^4.17.21",
     "vue": "^3.5.18"
   },
   "devDependencies": {
+    "@types/form-data": "^2.5.2",
+    "@types/lodash-es": "^4.17.12",
+    "@types/lodash.clonedeep": "^4.5.9",
+    "@types/node": "^24.3.1",
     "@typescript-eslint/eslint-plugin": "^8.42.0",
     "@typescript-eslint/parser": "^8.42.0",
     "@vitejs/plugin-vue": "^6.0.1",

@@ -2,71 +2,131 @@ package main
 
 import (
 	"context"
-	"fmt"
+	"flag"
+	"log"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 
-	"github.com/22wjLiu/proxy-server/internal/httpproxy"
-	m "github.com/22wjLiu/proxy-server/internal/metrics"
-	"github.com/22wjLiu/proxy-server/internal/rules"
-
-	httpSwagger "github.com/swaggo/http-swagger"
-	docs "github.com/22wjLiu/proxy-server/internal/docs"
+	"github.com/22wjLiu/proxyServer/internal/config"
+	"github.com/22wjLiu/proxyServer/internal/logging"
+	"github.com/22wjLiu/proxyServer/internal/metrics"
+	"github.com/22wjLiu/proxyServer/internal/rules"
+	"github.com/22wjLiu/proxyServer/internal/upstream"
+	"github.com/22wjLiu/proxyServer/internal/admin"
+	httpproxy "github.com/22wjLiu/proxyServer/internal/proxy/http"
+	socks5proxy "github.com/22wjLiu/proxyServer/internal/proxy/socks5"
 )
 
 // @title           Proxy Server API
 // @version         1.0
-// @description     HTTP代理 + 规则拦截 + 指标接口
+// @description     HTTP代理 + SOCKS5代理 + 规则拦截 + 监控仪表盘
 // @BasePath        /
-
 func main() {
-	// 端口/路径
-	httpProxyAddr := "0.0.0.0:8080"
-	dashboardAddr := "0.0.0.0:3000"
-	publicDir := "./public"
+	// == 读取命令行参数 ==
+	var cfgPath string
+	flag.StringVar(&cfgPath, "config", "config/config.yaml", "配置文件路径")
+	var distPath string
+	flag.StringVar(&distPath, "dist", "dist", "前端文件路径")
+	
+	// == 加载配置 ==
+	cfg, err := config.Load(cfgPath)
+	if err != nil {
+		log.Fatalf("配置解析失败: %v", err)
+	}
 
-	// Swagger 基本信息（可选）
-	docs.SwaggerInfo.Title = "Proxy Server API"
-	docs.SwaggerInfo.Version = "1.0"
-	docs.SwaggerInfo.BasePath = "/"
+	log.Printf("配置解析成功，配置文件路径： %s", cfgPath)
+	log.Printf("日志级别： %s", cfg.Logging.Level)
 
-	// 规则引擎（示例）
-	engine := rules.New(rules.Config{
-		DefaultAction: "allow",
-		Allowlist:     []string{"*.edu", "*.gov"},
-		BlockDomains:  []string{"*.doubleclick.net"},
-		BlockTLDs:     []string{".xxx", ".adult"},
-		Keywords:      []string{"adservice", "ads.", "porn", "sex", "track"},
-	})
+	// == 初始化日志 ==
+	logger := logging.New(cfg.Logging)
 
-	// 启动代理
-	proxy := httpproxy.New(httpproxy.Opts{Addr: httpProxyAddr, Engine: engine, Timeout: 8 * time.Second})
+	// == 初始化依赖 ==
+	// 指标
+	reg := metrics.MustRegisterAll()
+
+	// 规则引擎
+	judge := rules.NewEngine(cfg.ACL)
+
+	// 上游池
+	up := upstream.NewPool(cfg.Upstream, logger, judge)
+
+	// HTTP 代理
+	httpProxyHandler := httpproxy.NewHTTPHandler(cfg, logger, up, judge)
+	httpSrv := &http.Server{
+		Addr:              cfg.HTTP.Listen,
+		Handler:           httpProxyHandler,
+		ReadHeaderTimeout: 10 * time.Second,
+		ConnState: func(c net.Conn, s http.ConnState) {
+			switch s {
+			case http.StateNew:
+				metrics.ActiveConnections.WithLabelValues("http").Inc()
+			case http.StateClosed:
+				metrics.ActiveConnections.WithLabelValues("http").Dec()
+			}
+		},
+	}
+
+	// 管理 API
+	adminRouter := admin.NewRouter(reg, up, judge, distPath)
+	adminSrv := &http.Server{
+		Addr:              cfg.Admin.Listen,
+		Handler:           adminRouter,
+		ReadHeaderTimeout: 10 * time.Second,
+	}
+		
+	// SOCKS5
+	socksLn, err := net.Listen("tcp", cfg.SOCKS5.Listen)
+	if err != nil {
+		log.Fatalf("socks5 监听出错 %s: %v", cfg.SOCKS5.Listen, err)
+	}
+
+	// ========= 启动各服务（并发）=========
+	// 上游健康检查
+	if up != nil {
+		go func() {
+			up.StartHealthCheck()
+			logger.Infof("上游健康检查开启")
+		}()
+	}
+
+	// HTTP 代理
 	go func() {
-		fmt.Println("[proxy] listen:", httpProxyAddr)
-		_ = proxy.ListenAndServe()
+		logger.Infof("HTTP 代理监听端口 %s", cfg.HTTP.Listen)
+		if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("http 代理开启错误: %v", err)
+		}
 	}()
 
-	// Dashboard mux：托管前端 + API + Swagger UI
-	mux := http.NewServeMux()
-	mux.Handle("/", http.FileServer(http.Dir(publicDir)))
-	mux.HandleFunc("/api/stats", m.GetStats)
-	mux.Handle("/swagger/", httpSwagger.WrapHandler)
-
-	dashboardSrv := &http.Server{Addr: dashboardAddr, Handler: mux}
+	// SOCKS5
 	go func() {
-		fmt.Println("[dashboard] listen:", dashboardAddr)
-		_ = dashboardSrv.ListenAndServe()
+		logger.Infof("SOCKS5 代理监听端口 %s", cfg.SOCKS5.Listen)
+		socks5proxy.ListenAndServe(socksLn, cfg, logger, up, judge) // 阻塞：内部 Accept 循环
 	}()
 
-	// 优雅退出
-	stop := make(chan os.Signal, 1)
-	signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
-	<-stop
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	// 管理 API
+	go func() {
+		logger.Infof("管理 API 监听端口 %s (Swagger: /swagger/index.html)", cfg.Admin.Listen)
+		if err := adminSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			log.Fatalf("admin api: %v", err)
+		}
+	}()
+
+	// ========= 优雅退出 =========
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	<-quit
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	_ = dashboardSrv.Shutdown(ctx)
-	_ = proxy.Shutdown(ctx)
+
+	// 先关 HTTP/管理，再关 SOCKS5 监听（Accept 会返回错误以跳出循环）
+	_ = httpSrv.Shutdown(ctx)
+	_ = adminSrv.Shutdown(ctx)
+	_ = socksLn.Close()
+
+	log.Println("关闭成功")
 }

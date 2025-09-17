@@ -1,0 +1,102 @@
+/* 基础设置 */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    Roboto,
+    "Helvetica Neue",
+    "PingFang SC",
+    "Noto Sans CJK SC",
+    "Microsoft YaHei",
+    Arial,
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+  color: var(--fg);
+  background: var(--bg);
+}
+
+/* 布局 */
+:root {
+  --gap: 16px;
+  --padding: 16px;
+}
+
+/* 颜色主题 */
+:root {
+  color-scheme: light dark;
+}
+
+/* 浅色 */
+:root {
+  /* 语义色 */
+  --bg: #e0f7fa;
+  --color: #0d1b2a;
+
+  /* 功能色 */
+  --primary: #3b82f6;
+  --success: #10b981;
+  --warning: #f59e0b;
+  --danger: #ef4444;
+
+  /* 边框/分割线/阴影 */
+  --border: #cbd5e1;
+  --ring: #38bdf8;
+  --shadow: 0 8px 24px rgba(99, 102, 241, 0.08);
+
+  /* 卡片/面板 */
+  --card-bg: #ffffff;
+  --card-border: #38bdf8;
+
+  /* 滚动条 */
+  --scrollbar: #0ea5e9;
+  --scrollbar-track: #b3e5fc;
+}
+
+/* 深色 */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b0e14;
+    --color: #e8eaed;
+
+    --primary: #60a5fa;
+    --success: #28c76f;
+    --warning: #ffd60a;
+    --danger: #ea5455;
+
+    --border: #1f2937;
+    --ring: #2563eb;
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+
+    --card-bg: #121723;
+    --card-border: #1f2533;
+
+    --scrollbar: #4b5563;
+    --scrollbar-track: #0d0f13;
+  }
+}
+
+/* 通用类 */
+.muted {
+  opacity: 0.65;
+}
+
+.mono {
+  font-family:
+    ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+    monospace;
+}
