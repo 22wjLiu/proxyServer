@@ -41,8 +41,3 @@ acl:
   blacklist: ["bad.com"]
   tld: [".xxx", ".adult"]
   keywords: ["ads", "porn", "sex", "track"]
-
-# 速率限制
-ratelimit:
-  global_qps: 0
-  per_ip_qps: 0
