@@ -5,6 +5,7 @@ import (
 	"fmt"
     "time"
 	"strings"
+	"regexp"
 
     "gopkg.in/yaml.v3"
     "os"
@@ -106,8 +107,22 @@ func UnmarshalYaml(c *Config) error {
 		case RoundRobin, LeastConn:
 			break;
 		default:
-			return fmt.Errorf("上游策略配置（upstream.Algo: %s, 而不是 %s | %s", c.Upstream.Algo, RoundRobin, LeastConn)
+			return fmt.Errorf("上游策略配置（upstream.algo: %s, 而不是 %s | %s", c.Upstream.Algo, RoundRobin, LeastConn)
 		}
+	}
+
+	if hasProxy := c.HTTP.Enable || c.SOCKS5.Enable; !hasProxy {
+		return fmt.Errorf("未启用任何代理配置（http.enable 和 socks5.enable 为 false)")
+	}
+
+	listenReg := regexp.MustCompile(`:\d{1,5}`)
+
+	if c.HTTP.Enable && !listenReg.MatchString(c.HTTP.Listen) {
+		return fmt.Errorf("HTTP代理配置（http.listen 指定了错误格式的端口值,格式示例为 :8080）")
+	}
+
+	if c.SOCKS5.Enable && !listenReg.MatchString(c.SOCKS5.Listen) {
+		return fmt.Errorf("SOCKS5代理配置（socks5.listen 指定了错误格式的端口值,格式示例为 :1080）")
 	}
 
 	return nil

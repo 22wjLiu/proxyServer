@@ -19,6 +19,8 @@ import (
 	"github.com/22wjLiu/proxyServer/internal/admin"
 	httpproxy "github.com/22wjLiu/proxyServer/internal/proxy/http"
 	socks5proxy "github.com/22wjLiu/proxyServer/internal/proxy/socks5"
+
+	"github.com/gin-gonic/gin"
 )
 
 // @title           Proxy Server API
@@ -55,33 +57,48 @@ func main() {
 	up := upstream.NewPool(cfg.Upstream, logger, judge)
 
 	// HTTP 代理
-	httpProxyHandler := httpproxy.NewHTTPHandler(cfg, logger, up, judge)
-	httpSrv := &http.Server{
-		Addr:              cfg.HTTP.Listen,
-		Handler:           httpProxyHandler,
-		ReadHeaderTimeout: 10 * time.Second,
-		ConnState: func(c net.Conn, s http.ConnState) {
-			switch s {
-			case http.StateNew:
-				metrics.ActiveConnections.WithLabelValues("http").Inc()
-			case http.StateClosed:
-				metrics.ActiveConnections.WithLabelValues("http").Dec()
-			}
-		},
+	var (
+		httpProxyHandler http.Handler
+		httpSrv *http.Server
+	)
+	if cfg.HTTP.Enable {
+		httpProxyHandler = httpproxy.NewHTTPHandler(cfg, logger, up, judge)
+		httpSrv = &http.Server{
+			Addr:              cfg.HTTP.Listen,
+			Handler:           httpProxyHandler,
+			ReadHeaderTimeout: 10 * time.Second,
+			ConnState: func(c net.Conn, s http.ConnState) {
+				switch s {
+				case http.StateNew:
+					metrics.ActiveConnections.WithLabelValues("http").Inc()
+				case http.StateClosed:
+					metrics.ActiveConnections.WithLabelValues("http").Dec()
+				}
+			},
+		}
+	}
+
+	// SOCKS5
+	var socksLn net.Listener
+	if cfg.SOCKS5.Enable {
+		socksLn, err = net.Listen("tcp", cfg.SOCKS5.Listen)
+		if err != nil {
+			log.Fatalf("socks5 监听出错 %s: %v", cfg.SOCKS5.Listen, err)
+		}
 	}
 
 	// 管理 API
-	adminRouter := admin.NewRouter(reg, up, judge, distPath)
-	adminSrv := &http.Server{
-		Addr:              cfg.Admin.Listen,
-		Handler:           adminRouter,
-		ReadHeaderTimeout: 10 * time.Second,
-	}
-		
-	// SOCKS5
-	socksLn, err := net.Listen("tcp", cfg.SOCKS5.Listen)
-	if err != nil {
-		log.Fatalf("socks5 监听出错 %s: %v", cfg.SOCKS5.Listen, err)
+	var (
+		adminRouter *gin.Engine
+		adminSrv *http.Server
+	)
+	if cfg.Admin.Enable {
+		adminRouter = admin.NewRouter(reg, up, judge, distPath)
+		adminSrv = &http.Server{
+			Addr:              cfg.Admin.Listen,
+			Handler:           adminRouter,
+			ReadHeaderTimeout: 10 * time.Second,
+		}
 	}
 
 	// ========= 启动各服务（并发）=========
@@ -94,26 +111,33 @@ func main() {
 	}
 
 	// HTTP 代理
-	go func() {
-		logger.Infof("HTTP 代理监听端口 %s", cfg.HTTP.Listen)
-		if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("http 代理开启错误: %v", err)
-		}
-	}()
+	if httpSrv != nil {
+		go func() {
+			logger.Infof("HTTP 代理监听端口 %s", cfg.HTTP.Listen)
+			if err := httpSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				log.Fatalf("http 代理开启错误: %v", err)
+			}
+		}()
+	}
 
 	// SOCKS5
-	go func() {
-		logger.Infof("SOCKS5 代理监听端口 %s", cfg.SOCKS5.Listen)
-		socks5proxy.ListenAndServe(socksLn, cfg, logger, up, judge) // 阻塞：内部 Accept 循环
-	}()
+	if socksLn != nil {
+		go func() {
+			logger.Infof("SOCKS5 代理监听端口 %s", cfg.SOCKS5.Listen)
+			socks5proxy.ListenAndServe(socksLn, cfg, logger, up, judge) // 阻塞：内部 Accept 循环
+		}()
+	}
 
 	// 管理 API
-	go func() {
-		logger.Infof("管理 API 监听端口 %s (Swagger: /swagger/index.html)", cfg.Admin.Listen)
-		if err := adminSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-			log.Fatalf("admin api: %v", err)
-		}
-	}()
+	if adminSrv != nil {
+		go func() {
+			logger.Infof("管理 API 监听端口 %s (Swagger: /swagger/index.html)", cfg.Admin.Listen)
+			if err := adminSrv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+				log.Fatalf("admin api: %v", err)
+			}
+		}()
+	}
+
 
 	// ========= 优雅退出 =========
 	quit := make(chan os.Signal, 1)
@@ -124,9 +148,15 @@ func main() {
 	defer cancel()
 
 	// 先关 HTTP/管理，再关 SOCKS5 监听（Accept 会返回错误以跳出循环）
-	_ = httpSrv.Shutdown(ctx)
-	_ = adminSrv.Shutdown(ctx)
-	_ = socksLn.Close()
+	if httpSrv != nil {
+		_ = httpSrv.Shutdown(ctx)
+	}
+	if adminSrv != nil {
+		_ = adminSrv.Shutdown(ctx)
+	}
+	if socksLn != nil {
+		_ = socksLn.Close()
+	}
 
 	log.Println("关闭成功")
 }
