@@ -16,10 +16,7 @@ defineProps<{
         <span>被拦截</span><b>{{ info.blocked }}</b>
       </div>
       <div>
-        <span>放行率</span><b>{{ (100 - info.blockRate).toFixed(1) }}%</b>
-      </div>
-      <div>
-        <span>平均延迟</span><b>{{ info.latencyAvg }} ms</b>
+        <span>放行率</span><b>{{ info.allowRate }}</b>
       </div>
     </div>
   </div>

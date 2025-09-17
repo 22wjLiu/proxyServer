@@ -13,9 +13,13 @@ import (
 // 常量
 type LogModeEnum string
 
+type AlgoEnum string
+
 const (
 	LogModeInfo LogModeEnum = "info"
 	LogModeDebug LogModeEnum = "debug"
+	RoundRobin AlgoEnum = "round_robin"
+	LeastConn AlgoEnum = "least_conn"
 )
 
 // 解析结构体
@@ -32,7 +36,7 @@ type Upstream struct {
 	Enable bool			  `yaml:"enable"`
 	HTTP   []string       `yaml:"http"`
 	SOCKS5 []string       `yaml:"socks5"`
-	Algo   string         `yaml:"algo"`
+	Algo   AlgoEnum       `yaml:"algo"`
 	Health UpstreamHealth `yaml:"health"`
 }
 
@@ -59,31 +63,11 @@ type Admin struct {
 	Listen string `yaml:"listen"`
 }
 
-type HTTPBasic struct {
-	Username string `yaml:"username"`
-	Password string `yaml:"password"`
-}
-
-type SOCKS5UserPass struct {
-	Username string `yaml:"username"`
-	Password string `yaml:"password"`
-}
-
-type Auth struct {
-	HTTPBasic      *HTTPBasic      `yaml:"http_basic"`
-	SOCKS5UserPass *SOCKS5UserPass `yaml:"socks5_userpass"`
-}
-
 type ACL struct {
 	Whitelist []string `yaml:"whitelist"`
 	Blacklist []string `yaml:"blacklist"`
 	TLD       []string `yaml:"tld"`
 	Keywords  []string `yaml:"keywords"`
-}
-
-type RateLimit struct {
-	GlobalQPS int `yaml:"global_qps"`
-	PerIPQPS  int `yaml:"per_ip_qps"`
 }
 
 /* ===== 根配置引用上面的命名类型 ===== */
@@ -94,9 +78,7 @@ type Config struct {
 	HTTP      HTTP      `yaml:"http"`
 	SOCKS5    SOCKS5    `yaml:"socks5"`
 	Timeouts  Timeouts  `yaml:"timeouts"`
-	Auth      Auth      `yaml:"auth"`
 	ACL       ACL       `yaml:"acl"`
-	RateLimit RateLimit `yaml:"ratelimit"`
 	Admin     Admin     `yaml:"admin"`
 }
 
@@ -111,13 +93,22 @@ func UnmarshalYaml(c *Config) error {
 	}
 
 	// 上游池
-    if c.Upstream.Health.Interval == 0 {
-		return fmt.Errorf("上游池健康检查间隔时间（health.interval）不能为 0s")
-    }
-
-    if c.Upstream.Health.Timeout == 0 {
-		return fmt.Errorf("上游池健康检查超时时间（health.timeout）不能为 0s")
-    }
+	if c.Upstream.Enable {
+		if c.Upstream.Health.Interval == 0 {
+			return fmt.Errorf("上游池健康检查间隔时间（health.interval）不能为 0s")
+		}
+	
+		if c.Upstream.Health.Timeout == 0 {
+			return fmt.Errorf("上游池健康检查超时时间（health.timeout）不能为 0s")
+		}
+	
+		switch c.Upstream.Algo {
+		case RoundRobin, LeastConn:
+			break;
+		default:
+			return fmt.Errorf("上游策略配置（upstream.Algo: %s, 而不是 %s | %s", c.Upstream.Algo, RoundRobin, LeastConn)
+		}
+	}
 
 	return nil
 }

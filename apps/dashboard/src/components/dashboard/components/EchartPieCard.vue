@@ -21,11 +21,14 @@ import * as echarts from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
 
 // == 函数 ==
-import { onMounted, onUnmounted, ref } from "vue";
+import { onMounted, onUnmounted, ref, watch } from "vue";
+import type { PieChartData } from "@/type/card";
 
 // == 属性 ==
-defineProps<{
+const props = defineProps<{
   title: string;
+  time: string;
+  data: PieChartData[];
 }>();
 
 // == 变量 ==
@@ -57,12 +60,6 @@ type ECOption = ComposeOption<
 
 // == 自定义函数 ==
 function makeOption(): ECOption {
-  const data = [
-    { name: "关键词", value: 1240 },
-    { name: "黑名单", value: 980 },
-    { name: "TLD", value: 640 },
-    { name: "其他", value: 320 },
-  ];
   return {
     tooltip: { trigger: "item" },
     legend: { top: "bottom" },
@@ -70,13 +67,24 @@ function makeOption(): ECOption {
       {
         type: "pie",
         radius: ["35%", "65%"],
+        center: ["50%", "40%"],
         avoidLabelOverlap: true,
-        itemStyle: { borderRadius: 4, borderWidth: 1 },
-        data,
+        itemStyle: { borderRadius: 3, borderWidth: 1 },
+        data: props.data,
       },
     ],
   };
 }
+
+// == 监控变量 ==
+watch(
+  () => props.time,
+  () => {
+    if (chart !== null) {
+      chart.setOption(makeOption());
+    }
+  },
+);
 
 // == 生命周期函数 ==
 onMounted(() => {

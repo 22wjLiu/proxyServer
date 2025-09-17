@@ -1,39 +1,187 @@
 basePath: /
 definitions:
-  metrics.StatsResponse:
+  handlers.HistogramPoint:
     properties:
-      avgLatencyMs:
-        example: 18
+      buckets:
+        additionalProperties:
+          format: int64
+          type: integer
+        description: 上界 -> 累计计数
+        type: object
+      count:
         type: integer
-      blockRate:
-        example: 0.13
+      labels:
+        additionalProperties:
+          type: string
+        type: object
+      sum:
         type: number
-      concurrent:
-        example: 42
-        type: integer
-      p95LatencyMs:
-        example: 45
-        type: integer
-      qps:
-        example: 12.3
+    type: object
+  handlers.MetricPoint:
+    properties:
+      labels:
+        additionalProperties:
+          type: string
+        type: object
+      value:
         type: number
+    type: object
+  handlers.MetricsJSON:
+    properties:
+      counters:
+        additionalProperties:
+          items:
+            $ref: '#/definitions/handlers.MetricPoint'
+          type: array
+        type: object
+      gauges:
+        additionalProperties:
+          items:
+            $ref: '#/definitions/handlers.MetricPoint'
+          type: array
+        type: object
+      histograms:
+        additionalProperties:
+          items:
+            $ref: '#/definitions/handlers.HistogramPoint'
+          type: array
+        type: object
+    type: object
+  handlers.NodeStatus:
+    properties:
+      addr:
+        description: host:port
+        type: string
+      alive:
+        description: 存活
+        type: boolean
+      conns:
+        description: 当前连接数（least-conn可用）
+        type: integer
+      type:
+        description: http | socks5
+        type: string
+      url:
+        description: 原始URL串（含scheme）
+        type: string
+    type: object
+  handlers.RulesInfo:
+    properties:
+      blacklist:
+        items:
+          type: string
+        type: array
+      keywords:
+        items:
+          type: string
+        type: array
+      tld:
+        items:
+          type: string
+        type: array
+      whitelist:
+        items:
+          type: string
+        type: array
+    type: object
+  response.VO:
+    properties:
+      code:
+        example: 200
+        type: integer
+      data: {}
+      message:
+        example: OK
+        type: string
+      timestamp:
+        example: 1757664315
+        type: integer
     type: object
 info:
   contact: {}
-  description: HTTP代理 + 规则拦截 + 指标接口
+  description: HTTP代理 + SOCKS5代理 + 规则拦截 + 监控仪表盘
   title: Proxy Server API
   version: "1.0"
 paths:
-  /api/stats:
+  /api/metrics:
     get:
+      description: 返回请求数、延迟、并发等 JSON 格式的指标
       produces:
       - application/json
       responses:
         "200":
           description: OK
           schema:
-            $ref: '#/definitions/metrics.StatsResponse'
-      summary: Get runtime stats
+            allOf:
+            - $ref: '#/definitions/response.VO'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.MetricsJSON'
+              type: object
+        "500":
+          description: 获取指标失败
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.VO'
+            - properties:
+                message:
+                  type: string
+              type: object
+      summary: 获取代理运行指标
       tags:
-      - stats
+      - Metrics
+  /api/rules:
+    get:
+      description: 返回当前配置的关键词、TLD、黑名单、白名单信息
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.VO'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.RulesInfo'
+              type: object
+        "500":
+          description: 获取规则信息失败
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.VO'
+            - properties:
+                message:
+                  type: string
+              type: object
+      summary: 获取当前规则信息
+      tags:
+      - Rules
+  /api/upstreams:
+    get:
+      description: 返回上游链接包括链接协议、路径和是否存活等
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.VO'
+            - properties:
+                data:
+                  $ref: '#/definitions/handlers.NodeStatus'
+              type: object
+        "500":
+          description: 获取上游池信息失败
+          schema:
+            allOf:
+            - $ref: '#/definitions/response.VO'
+            - properties:
+                message:
+                  type: string
+              type: object
+      summary: 获取上游池信息
+      tags:
+      - Upstreams
 swagger: "2.0"

@@ -21,11 +21,16 @@ import * as echarts from "echarts/core";
 import { CanvasRenderer } from "echarts/renderers";
 
 // == 函数 ==
-import { onMounted, onUnmounted, ref } from "vue";
+import { onMounted, onUnmounted, ref, watch } from "vue";
 
 // == 属性 ==
-defineProps<{
+const props = defineProps<{
   title: string;
+  time: string;
+  firstName: string;
+  firstData: number;
+  secondName: string;
+  secondData: number;
 }>();
 
 // == 变量 ==
@@ -46,6 +51,14 @@ echarts.use([
   CanvasRenderer,
 ]);
 
+// 数据数组最大长度
+const MAX_LENGTH: number = 60;
+
+// 数据数组
+const times: string[] = [];
+const fristDatas: number[] = [];
+const secondDatas: number[] = [];
+
 // 组合后的全局 Option 类型（替代 EChartsOption）
 type ECOption = ComposeOption<
   | LineSeriesOption
@@ -57,33 +70,52 @@ type ECOption = ComposeOption<
 
 // == 自定义函数 ==
 function makeOption(): ECOption {
-  const t = Array.from({ length: 30 }, (_, i) =>
-    new Date(Date.now() - (30 - 1 - i) * 2000).toLocaleTimeString(),
-  );
-  const qps = t.map(() => 120 + Math.round(Math.random() * 100));
-  const conns = t.map(() => 900 + Math.round(Math.random() * 800));
   return {
     tooltip: { trigger: "axis" },
-    grid: { left: 40, right: 16, top: 24, bottom: 28 },
-    legend: { data: ["QPS", "并发连接"] },
-    xAxis: { type: "category", data: t },
+    grid: { left: 40, right: 16, top: 24, bottom: 40 },
+    legend: { data: [props.firstName, props.secondName], bottom: 0 },
+    xAxis: { type: "category", data: times },
     yAxis: [
-      { type: "value", name: "QPS" },
-      { type: "value", name: "连接数" },
+      { type: "value", name: props.firstName },
+      { type: "value", name: props.secondName },
     ],
     series: [
-      { name: "QPS", type: "line", smooth: true, symbol: "none", data: qps },
       {
-        name: "并发连接",
+        name: props.firstName,
+        type: "line",
+        smooth: true,
+        symbol: "none",
+        data: fristDatas,
+      },
+      {
+        name: props.secondName,
         type: "line",
         yAxisIndex: 1,
         smooth: true,
         symbol: "none",
-        data: conns,
+        data: secondDatas,
       },
     ],
   };
 }
+
+// == 监控变量 ==
+watch(
+  () => props.time,
+  () => {
+    if (chart !== null) {
+      times.push(props.time);
+      fristDatas.push(props.firstData);
+      secondDatas.push(props.secondData);
+      if (times.length > MAX_LENGTH) {
+        times.shift();
+        fristDatas.shift();
+        secondDatas.shift();
+      }
+      chart.setOption(makeOption());
+    }
+  },
+);
 
 // == 生命周期函数 ==
 onMounted(() => {

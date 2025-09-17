@@ -19,8 +19,6 @@ import (
 	"github.com/22wjLiu/proxyServer/internal/admin"
 	httpproxy "github.com/22wjLiu/proxyServer/internal/proxy/http"
 	socks5proxy "github.com/22wjLiu/proxyServer/internal/proxy/socks5"
-
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 )
 
 // @title           Proxy Server API
@@ -31,6 +29,8 @@ func main() {
 	// == 读取命令行参数 ==
 	var cfgPath string
 	flag.StringVar(&cfgPath, "config", "config/config.yaml", "配置文件路径")
+	var distPath string
+	flag.StringVar(&distPath, "dist", "dist", "前端文件路径")
 	
 	// == 加载配置 ==
 	cfg, err := config.Load(cfgPath)
@@ -46,7 +46,7 @@ func main() {
 
 	// == 初始化依赖 ==
 	// 指标
-	metrics.MustRegisterAll()
+	reg := metrics.MustRegisterAll()
 
 	// 规则引擎
 	judge := rules.NewEngine(cfg.ACL)
@@ -60,10 +60,18 @@ func main() {
 		Addr:              cfg.HTTP.Listen,
 		Handler:           httpProxyHandler,
 		ReadHeaderTimeout: 10 * time.Second,
+		ConnState: func(c net.Conn, s http.ConnState) {
+			switch s {
+			case http.StateNew:
+				metrics.ActiveConnections.WithLabelValues("http").Inc()
+			case http.StateClosed:
+				metrics.ActiveConnections.WithLabelValues("http").Dec()
+			}
+		},
 	}
 
 	// 管理 API
-	adminRouter := admin.NewRouter(up, judge)
+	adminRouter := admin.NewRouter(reg, up, judge, distPath)
 	adminSrv := &http.Server{
 		Addr:              cfg.Admin.Listen,
 		Handler:           adminRouter,

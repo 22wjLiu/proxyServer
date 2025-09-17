@@ -11,10 +11,10 @@ import (
 type Reason string
 
 const (
-	ReasonWhitelist Reason = "whitelist"
-	ReasonBlacklist Reason = "blacklist"
-	ReasonTLD Reason = "tld"
-	ReasonKeyword Reason = "keyword"
+	ReasonWhitelist Reason = "白名单"
+	ReasonBlacklist Reason = "黑名单"
+	ReasonTLD Reason = "TLD"
+	ReasonKeyword Reason = "关键词"
 )
 
 type Verdict struct {
@@ -22,17 +22,10 @@ type Verdict struct {
 	Reason Reason
 }
 
-type Snapshot struct {
-	Whitelist []string `json:"whitelist"`
-	Blacklist []string `json:"blacklist"`
-	TLD       []string `json:"tld"`
-	Keywords  []string `json:"keywords"`
-}
-
-type Engine struct { c config.ACL }
+type Engine struct { C config.ACL }
 
 func NewEngine(c config.ACL) *Engine {
-	return &Engine{c: c} 
+	return &Engine{C: c} 
 }
 
 func matchHost(host, pattern string) bool {
@@ -50,33 +43,15 @@ func (e *Engine) Judge(hostPort string) Verdict {
 	h := strings.ToLower(host)
 
 	// 1) 白名单优先
-	for _, w := range e.c.Whitelist {
+	for _, w := range e.C.Whitelist {
 		if matchHost(h, w) { return Verdict{Allow: true, Reason: ReasonWhitelist} }
 	}
 	// 2) 黑名单
-	for _, b := range e.c.Blacklist { if matchHost(h, b) { return Verdict{Allow: false, Reason: ReasonBlacklist} } }
+	for _, b := range e.C.Blacklist { if matchHost(h, b) { return Verdict{Allow: false, Reason: ReasonBlacklist} } }
 	// 3) TLD 后缀
-	for _, t := range e.c.TLD { if strings.HasSuffix(h, strings.ToLower(t)) { return Verdict{Allow: false, Reason: ReasonTLD} } }
+	for _, t := range e.C.TLD { if strings.HasSuffix(h, strings.ToLower(t)) { return Verdict{Allow: false, Reason: ReasonTLD} } }
 	// 4) 关键词
-	for _, k := range e.c.Keywords { if strings.Contains(h, strings.ToLower(k)) { return Verdict{Allow: false, Reason: ReasonKeyword} } }
+	for _, k := range e.C.Keywords { if strings.Contains(h, strings.ToLower(k)) { return Verdict{Allow: false, Reason: ReasonKeyword} } }
 	// 未命中：放行
 	return Verdict{Allow: true}
 }
-
-func (e *Engine) List() Snapshot {
-	// 返回副本，避免外部修改内部切片
-	clone := func(in []string) []string {
-		out := make([]string, len(in))
-		copy(out, in)
-		return out
-	}
-	c := e.c
-	return Snapshot{
-		Whitelist: clone(c.Whitelist),
-		Blacklist: clone(c.Blacklist),
-		TLD:       clone(c.TLD),
-		Keywords:  clone(c.Keywords),
-	}
-}
-
-// TODO: 支持 CIDR/IP 列表匹配；支持路径关键词（HTTP 场景）
