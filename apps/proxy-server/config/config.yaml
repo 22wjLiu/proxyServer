@@ -4,7 +4,7 @@ logging:
 
 # 上游池
 upstream:
-  enable: true
+  enable: false
   http: ["http://127.0.0.1:8081", "http://127.0.0.1:8082"]           # e.g. ["http://127.0.0.1:3128"]  
   socks5: ["socks5://127.0.0.1:1081", "socks5://127.0.0.1:1082"]      # e.g. ["socks5://127.0.0.1:1081"]  
   algo: least_conn # round_robin(轮询) | least_conn(最少连接数)
@@ -19,7 +19,7 @@ http:
 
 # socks5 代理
 socks5:
-  enable: true
+  enable: false
   listen: ":1080"   # e.g. ":1080"
 
 # 连接配置
